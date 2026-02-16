@@ -14,6 +14,8 @@ import 'package:npc/core/utils/snackbar_helper.dart';
 import 'package:npc/core/utils/validators.dart';
 import 'package:npc/features/home/home_page_screen.dart';
 import 'package:npc/features/settings/create_profile_screen.dart';
+import 'package:provider/provider.dart';
+import 'package:npc/view_models/auth_view_model.dart';
 
 // Naya account banane (Registration) ke liye screen
 class Signup extends StatefulWidget {
@@ -26,7 +28,6 @@ class Signup extends StatefulWidget {
 class _SignupState extends State<Signup> {
   final TextEditingController _emailController =
       TextEditingController(); // Email input field ke liye
-  bool _isLoading = false; // Button pe loading state dikhanay ke liye
 
   @override
   void dispose() {
@@ -69,120 +70,76 @@ class _SignupState extends State<Signup> {
                   ),
                   SizedBox(height: 10.h),
                   CustomTextfields.email(controller: _emailController),
-
                   SizedBox(height: 50.h),
                   Center(
-                    child: CustomButton(
-                      isLoading: _isLoading,
-                      text: "SIGN UP",
-                      onPressed: () async {
-                        FocusScope.of(context).unfocus(); // Keyboard band karo
-                        String email = _emailController.text.trim();
-
-                        // Check kya email field khali hai?
-                        if (email.isEmpty) {
-                          SnackbarHelper.showTopSnackBar(
-                            context,
-                            "Please enter email",
-                            isError: true,
-                          );
-                          return;
-                        }
-
-                        // Email ka sahi format (e.g. @) check karna
-                        String? emailError = Validators.validateEmail(email);
-                        if (emailError != null) {
-                          SnackbarHelper.showTopSnackBar(
-                            context,
-                            emailError,
-                            isError: true,
-                          );
-                          return;
-                        }
-
-                        setState(() => _isLoading = true);
-
-                        try {
-                          // Check kya ye email pehle se register to nahi?
-                          bool isRegistered = await AuthService()
-                              .isEmailRegistered(email);
-
-                          if (isRegistered) {
-                            if (!context.mounted) return;
-                            SnackbarHelper.showTopSnackBar(
+                    child: Consumer<AuthViewModel>(
+                      builder: (context, authVM, child) {
+                        return CustomButton(
+                          isLoading: authVM.isLoading,
+                          text: "SIGN UP",
+                          onPressed: () async {
+                            FocusScope.of(
                               context,
-                              "Email is already registered. Please login.",
-                              isError: true,
-                            );
-                            setState(() => _isLoading = false);
-                            return;
-                          }
+                            ).unfocus(); // Keyboard band karo
+                            String email = _emailController.text.trim();
 
-                          // OTP bhejne ka process shuru
-                          bool success = await AuthService().sendOtp(email);
-                          if (!context.mounted) return;
+                            // Check kya email field khali hai?
+                            if (email.isEmpty) {
+                              SnackbarHelper.showTopSnackBar(
+                                context,
+                                "Please enter email",
+                                isError: true,
+                              );
+                              return;
+                            }
 
-                          if (success) {
-                            SnackbarHelper.showTopSnackBar(
-                              context,
-                              "OTP has been sent to your email",
-                              isSuccess: true,
+                            // Email ka sahi format (e.g. @) check karna
+                            String? emailError = Validators.validateEmail(
+                              email,
                             );
-                            // Thora intezar taake message nazar aa jaye
-                            await Future.delayed(const Duration(seconds: 1));
+                            if (emailError != null) {
+                              SnackbarHelper.showTopSnackBar(
+                                context,
+                                emailError,
+                                isError: true,
+                              );
+                              return;
+                            }
+
+                            // API call using ViewModel
+                            bool success = await authVM.signUp(email, "");
+
                             if (!context.mounted) return;
 
-                            // OTP verify karne wali screen pe bhijwao
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    OtpScreen(isfromsignup: true, email: email),
-                              ),
-                            );
-                          } else {
-                            SnackbarHelper.showTopSnackBar(
-                              context,
-                              "Failed to send OTP. Try again.",
-                              isError: true,
-                            );
-                          }
-                        } on FirebaseAuthException catch (e) {
-                          String message = "Sign up failed";
-                          if (e.code == 'network-request-failed') {
-                            message =
-                                "No internet connection. Please check your network and try again";
-                          } else {
-                            message = e.message ?? "Sign up failed";
-                          }
+                            if (success) {
+                              SnackbarHelper.showTopSnackBar(
+                                context,
+                                authVM.successMessage ?? "Signup successful",
+                                isSuccess: true,
+                              );
+                              // Thora intezar taake message nazar aa jaye
+                              await Future.delayed(const Duration(seconds: 1));
+                              if (!context.mounted) return;
 
-                          if (context.mounted) {
-                            SnackbarHelper.showTopSnackBar(
-                              context,
-                              message,
-                              isError: true,
-                            );
-                          }
-                        } catch (e) {
-                          String message =
-                              "Registration error. Please try again.";
-                          if (e.toString().toLowerCase().contains('network') ||
-                              e.toString().toLowerCase().contains(
-                                'connection',
-                              )) {
-                            message =
-                                "No internet connection. Please check your network and try again";
-                          }
-                          if (context.mounted) {
-                            SnackbarHelper.showTopSnackBar(
-                              context,
-                              message,
-                              isError: true,
-                            );
-                          }
-                        } finally {
-                          if (mounted) setState(() => _isLoading = false);
-                        }
+                              // OTP verify karne wali screen pe bhijwao
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => OtpScreen(
+                                    isfromsignup: true,
+                                    email: email,
+                                  ),
+                                ),
+                              );
+                            } else {
+                              SnackbarHelper.showTopSnackBar(
+                                context,
+                                authVM.errorMessage ?? "Signup failed",
+                                isError: true,
+                              );
+                            }
+                          },
+                        );
                       },
                     ),
                   ),
@@ -261,7 +218,6 @@ class _SignupState extends State<Signup> {
                   Center(
                     child: GestureDetector(
                       onTap: () async {
-                        setState(() => _isLoading = true);
                         // Google account se direct register/login flow shuru
                         try {
                           final result = await AuthService().signInWithGoogle();
@@ -318,8 +274,7 @@ class _SignupState extends State<Signup> {
                             "Google Sign In Failed",
                             isError: true,
                           );
-                        } finally {
-                          if (mounted) setState(() => _isLoading = false);
+                          if (mounted) {}
                         }
                       },
                       child: Container(

@@ -6,8 +6,10 @@ import 'package:npc/core/theme/text_styles.dart';
 import 'package:npc/core/widgets/custom_appbar.dart';
 import 'package:npc/core/widgets/custom_button.dart';
 import 'package:npc/core/widgets/custom_textfields.dart';
-import 'package:npc/core/services/auth_service.dart';
 import 'package:npc/core/utils/snackbar_helper.dart';
+import 'package:npc/core/utils/validators.dart';
+import 'package:provider/provider.dart';
+import 'package:npc/view_models/auth_view_model.dart';
 
 // Password bhool janay ki soorat mein recovery screen
 class ForgotPasswordScreen extends StatefulWidget {
@@ -18,13 +20,10 @@ class ForgotPasswordScreen extends StatefulWidget {
 }
 
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
-  final TextEditingController _emailController =
-      TextEditingController(); // Email field ke liye controller
-  bool _isLoading = false; // Loading status batane ke liye
+  final TextEditingController _emailController = TextEditingController();
 
   @override
   void dispose() {
-    // Screen khatam honay pe controller ko memory se saaf (cleanup) karne ke liye
     _emailController.dispose();
     super.dispose();
   }
@@ -35,19 +34,14 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       backgroundColor: AppColors.bgcolor,
       body: SafeArea(
         child: GestureDetector(
-          onTap: () {
-            FocusScope.of(context).unfocus();
-          },
+          onTap: () => FocusScope.of(context).unfocus(),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Screen ka header (Custom AppBar)
               Padding(
                 padding: EdgeInsets.fromLTRB(20.w, 40.h, 20.w, 10.h),
                 child: const CustomAppBar(title: ""),
               ),
-
-              // SCROLLABLE CONTENT
               Expanded(
                 child: SingleChildScrollView(
                   padding: EdgeInsets.symmetric(horizontal: 20.w),
@@ -55,17 +49,13 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       SizedBox(height: 20.h),
-                      Text(
-                        'Forgot Password',
-                        style: AppTextStyles.mainheading,
-                      ), // Main heading
+                      Text('Forgot Password', style: AppTextStyles.mainheading),
                       SizedBox(height: 16.h),
                       Text(
-                        'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Aenean eget pharetra arcu. Phasellus leo .',
+                        'Don\'t worry! Enter your registered email to receive an OTP for password reset.',
                         style: AppTextStyles.bodysmall,
                       ),
                       SizedBox(height: 15.h),
-
                       Text(
                         'Email',
                         style: AppTextStyles.body.copyWith(
@@ -78,100 +68,67 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   ),
                 ),
               ),
-
-              // BUTTON (Outside Scroll, moves with keyboard)
               Padding(
                 padding: EdgeInsets.fromLTRB(20.w, 0, 20.w, 12.h),
-                child: CustomButton(
-                  isLoading: _isLoading,
-                  text: "NEXT",
-                  onPressed: () async {
-                    FocusScope.of(
-                      context,
-                    ).unfocus(); // Keyboard band karne ke liye
-                    String email = _emailController.text.trim();
-                    // Check kya email khali to nahi?
-                    if (email.isEmpty) {
-                      SnackbarHelper.showTopSnackBar(
-                        context,
-                        "Please enter email",
-                        isError: true,
-                      );
-                      return;
-                    }
-                    // Check kya email ka format sahi hai?
-                    if (!email.toLowerCase().endsWith("mail.com")) {
-                      SnackbarHelper.showTopSnackBar(
-                        context,
-                        "Invalid email",
-                        isError: true,
-                      );
-                      return;
-                    }
+                child: Consumer<AuthViewModel>(
+                  builder: (context, authVM, child) {
+                    return CustomButton(
+                      isLoading: authVM.isLoading,
+                      text: "NEXT",
+                      onPressed: () async {
+                        FocusScope.of(context).unfocus();
+                        String email = _emailController.text.trim();
 
-                    setState(() => _isLoading = true);
+                        if (email.isEmpty) {
+                          SnackbarHelper.showTopSnackBar(
+                            context,
+                            "Please enter your email",
+                            isError: true,
+                          );
+                          return;
+                        }
 
-                    try {
-                      // Check kya ye email system mein mojood hai?
-                      bool emailExists = await AuthService().isEmailRegistered(
-                        email,
-                      );
+                        final emailValidation = Validators.validateEmail(email);
+                        if (emailValidation != null) {
+                          SnackbarHelper.showTopSnackBar(
+                            context,
+                            "Please enter a valid email",
+                            isError: true,
+                          );
+                          return;
+                        }
 
-                      if (!emailExists) {
+                        // API Forgot Password call
+                        bool success = await authVM.forgotPassword(email);
+
                         if (!context.mounted) return;
-                        setState(() => _isLoading = false);
-                        SnackbarHelper.showTopSnackBar(
-                          context,
-                          "Email not found. Please enter a registered email.",
-                          isError: true,
-                        );
-                        return;
-                      }
 
-                      // OTP bhaijne ka process shuru
-                      bool success = await AuthService().sendOtp(email);
+                        if (success) {
+                          SnackbarHelper.showTopSnackBar(
+                            context,
+                            authVM.successMessage ??
+                                "OTP sent for password reset.",
+                            isSuccess: true,
+                          );
+                          await Future.delayed(const Duration(seconds: 1));
+                          if (!context.mounted) return;
 
-                      if (!context.mounted) return;
-                      setState(() => _isLoading = false);
-
-                      if (success) {
-                        SnackbarHelper.showTopSnackBar(
-                          context,
-                          "OTP has been sent to your email",
-                          isSuccess: true,
-                        );
-                        await Future.delayed(const Duration(seconds: 1));
-                        if (!context.mounted) return;
-                        // OTP enter karne wali screen pe bhijwao
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                OtpScreen(isfromforgot: true, email: email),
-                          ),
-                        );
-                      } else {
-                        SnackbarHelper.showTopSnackBar(
-                          context,
-                          "Failed to send OTP. Try again.",
-                          isError: true,
-                        );
-                      }
-                    } catch (e) {
-                      if (!context.mounted) return;
-                      setState(() => _isLoading = false);
-                      String message = "Error: $e";
-                      // Internet ka masla check karne ke liye
-                      if (e.toString().toLowerCase().contains('network') ||
-                          e.toString().toLowerCase().contains('connection')) {
-                        message =
-                            "No internet connection. Please check your network and try again";
-                      }
-                      SnackbarHelper.showTopSnackBar(
-                        context,
-                        message,
-                        isError: true,
-                      );
-                    }
+                          // OTP Screen par bhej rhe hain reset flow ke liye
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  OtpScreen(isfromforgot: true, email: email),
+                            ),
+                          );
+                        } else {
+                          SnackbarHelper.showTopSnackBar(
+                            context,
+                            authVM.errorMessage ?? "Failed to send reset OTP",
+                            isError: true,
+                          );
+                        }
+                      },
+                    );
                   },
                 ),
               ),

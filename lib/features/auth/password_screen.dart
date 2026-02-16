@@ -7,9 +7,12 @@ import 'package:npc/core/widgets/custom_appbar.dart';
 import 'package:npc/core/widgets/custom_button.dart';
 import 'package:npc/core/constants/app_assets.dart';
 import 'package:npc/core/widgets/custom_textfields.dart';
-import 'package:npc/features/settings/create_profile_screen.dart';
 import 'package:npc/core/services/auth_service.dart';
 import 'package:npc/core/utils/snackbar_helper.dart';
+import 'package:npc/features/auth/login_screen.dart';
+import 'package:provider/provider.dart';
+import 'package:npc/view_models/auth_view_model.dart';
+import 'package:npc/features/settings/create_profile_screen.dart';
 
 // Naya password banane ya purana update karne wali screen
 class PasswordScreen extends StatefulWidget {
@@ -38,16 +41,13 @@ class PasswordScreen extends StatefulWidget {
 }
 
 class _PasswordScreenState extends State<PasswordScreen> {
-  final TextEditingController _passController =
-      TextEditingController(); // Password field ke liye controller
-  final TextEditingController _confirmPassController =
-      TextEditingController(); // Confirm password ke liye controller
-  bool _isLoading = false; // Button pe loading dikhanay ke liye
-  bool _emailSent = false; // Kya password reset link bhej diya gaya hai?
+  final TextEditingController _passController = TextEditingController();
+  final TextEditingController _confirmPassController = TextEditingController();
+  bool _isLoading = false; // Firebase operations ke liye (Forgot Password)
+  bool _emailSent = false; // Password reset link status
 
   @override
   void dispose() {
-    // Screen band hone pe controllers ko saaf (cleanup) karne ke liye
     _passController.dispose();
     _confirmPassController.dispose();
     super.dispose();
@@ -76,8 +76,8 @@ class _PasswordScreenState extends State<PasswordScreen> {
                       SizedBox(height: 20.h),
                       Text(widget.title, style: AppTextStyles.mainheading),
                       SizedBox(height: 16.h),
+                      Text(widget.description, style: AppTextStyles.bodysmall),
                       SizedBox(height: 20.h),
-                      // Agar password reset link bhej diya ho, to ye UI dikhao
                       if (_emailSent) ...[
                         Center(
                           child: Icon(
@@ -105,7 +105,6 @@ class _PasswordScreenState extends State<PasswordScreen> {
                           ),
                         ),
                       ] else ...[
-                        // Password aur Confirm Password ke inputs
                         Text(
                           widget.firstFieldLabel,
                           style: AppTextStyles.body.copyWith(
@@ -141,172 +140,142 @@ class _PasswordScreenState extends State<PasswordScreen> {
               ),
               Padding(
                 padding: EdgeInsets.fromLTRB(20.w, 0, 20.w, 12.h),
-                child: CustomButton(
-                  isLoading: _isLoading,
-                  text: _emailSent ? "VERIFY & GO TO LOGIN" : widget.buttonText,
-                  onPressed: () async {
-                    FocusScope.of(
-                      context,
-                    ).unfocus(); // Keyboard band karne ke liye
+                child: Consumer<AuthViewModel>(
+                  builder: (context, authVM, child) {
+                    return CustomButton(
+                      isLoading: authVM.isLoading || _isLoading,
+                      text: _emailSent
+                          ? "VERIFY & GO TO LOGIN"
+                          : widget.buttonText,
+                      onPressed: () async {
+                        FocusScope.of(context).unfocus();
 
-                    final pass = _passController.text.trim();
+                        final pass = _passController.text.trim();
 
-                    // Agar email pehle hi bhej di gayi hai (Verification flow)
-                    if (_emailSent) {
-                      setState(() => _isLoading = true);
-                      try {
-                        // Naye password ke saath check karo kya link se update ho gaya?
-                        await AuthService().login(widget.email, pass);
-                        await AuthService()
-                            .signOut(); // Verification ke baad logout
-
-                        if (!context.mounted) return;
-                        widget.onButtonPressed(
-                          context,
-                        ); // Aglay step pe bhijwao
-                      } catch (e) {
-                        if (context.mounted) {
-                          SnackbarHelper.showTopSnackBar(
-                            context,
-                            "Verification failed. Please ensure you have opened the link in your email to update your password.",
-                            isError: true,
-                          );
-                        }
-                      } finally {
-                        if (mounted) setState(() => _isLoading = false);
-                      }
-                      return;
-                    }
-                    final confirmPass = _confirmPassController.text.trim();
-
-                    // Check kya password wali fields bhari hui hain?
-                    if (pass.isEmpty || confirmPass.isEmpty) {
-                      SnackbarHelper.showTopSnackBar(
-                        context,
-                        "Please Enter Password or Confirm Password",
-                        isError: true,
-                      );
-                      return;
-                    }
-
-                    // Check kya dono passwords milte (match) hain?
-                    if (pass != confirmPass) {
-                      SnackbarHelper.showTopSnackBar(
-                        context,
-                        "Confirm password incorrect",
-                        isError: true,
-                      );
-                      return;
-                    }
-
-                    // Password ki strength check karna (e.g. length, special chars)
-                    String? passwordError = Validators.validatePassword(pass);
-                    if (passwordError != null) {
-                      SnackbarHelper.showTopSnackBar(
-                        context,
-                        passwordError,
-                        isError: true,
-                      );
-                      return;
-                    }
-
-                    setState(() {
-                      _isLoading = true;
-                    });
-
-                    // Slight delay for visibility as requested
-                    await Future.delayed(const Duration(milliseconds: 800));
-
-                    if (mounted) {
-                      setState(() {
-                        _isLoading = false;
-                      });
-                    }
-
-                    if (!context.mounted) return;
-
-                    // Case 1: Agar password update karna ho (Forgot Password flow)
-                    if (widget.buttonText == "UPDATE PASSWORD") {
-                      setState(() {
-                        _isLoading = true;
-                      });
-
-                      try {
-                        // Firebase ke zariye password update karne ke liye link bhejo
-                        await AuthService().updatePassword(widget.email, pass);
-
-                        if (!context.mounted) return;
-
-                        SnackbarHelper.showTopSnackBar(
-                          context,
-                          "Password reset link sent successfully",
-                          isSuccess: true,
-                        );
-
-                        if (mounted) {
-                          setState(() {
-                            _emailSent = true;
-                          });
-                        }
-                      } catch (e) {
-                        if (!context.mounted) return;
-                        String message = "Error updating password: $e";
-                        if (e.toString().toLowerCase().contains('network') ||
-                            e.toString().toLowerCase().contains('connection')) {
-                          message =
-                              "No internet connection. Please check your network and try again";
-                        }
-                        SnackbarHelper.showTopSnackBar(
-                          context,
-                          message,
-                          isError: true,
-                        );
-                      } finally {
-                        if (mounted) {
-                          setState(() {
-                            _isLoading = false;
-                          });
-                        }
-                      }
-                    } else {
-                      // Case 2: Agar account naya banana ho (Signup flow)
-                      setState(() => _isLoading = true);
-
-                      try {
-                        // User ka account (Email + Password) create karo
-                        await AuthService().createAuthUser(
-                          email: widget.email,
-                          password: pass,
-                        );
-
-                        if (!context.mounted) return;
-                        // Account banne ke baad name/profile wali screen pe bhijwao
-                        Navigator.of(context).pushAndRemoveUntil(
-                          MaterialPageRoute(
-                            builder: (context) => const CreateProfileScreen(),
-                          ),
-                          (route) => false,
-                        );
-                      } catch (e) {
-                        if (context.mounted) {
-                          String message = "Registration Failed: $e";
-                          if (e.toString().toLowerCase().contains('network') ||
-                              e.toString().toLowerCase().contains(
-                                'connection',
-                              )) {
-                            message =
-                                "No internet connection. Please check your network and try again";
+                        if (_emailSent) {
+                          setState(() => _isLoading = true);
+                          try {
+                            // Firebase verification flow
+                            await AuthService().login(widget.email, pass);
+                            await AuthService().signOut();
+                            if (!context.mounted) return;
+                            widget.onButtonPressed(context);
+                          } catch (e) {
+                            if (context.mounted) {
+                              SnackbarHelper.showTopSnackBar(
+                                context,
+                                "Verification failed. Link check kryn.",
+                                isError: true,
+                              );
+                            }
+                          } finally {
+                            if (mounted) setState(() => _isLoading = false);
                           }
+                          return;
+                        }
+
+                        final confirmPass = _confirmPassController.text.trim();
+
+                        // Validations
+                        if (pass.isEmpty || confirmPass.isEmpty) {
                           SnackbarHelper.showTopSnackBar(
                             context,
-                            message,
+                            "Please Enter Password or Confirm Password",
                             isError: true,
                           );
+                          return;
                         }
-                      } finally {
-                        if (mounted) setState(() => _isLoading = false);
-                      }
-                    }
+
+                        if (pass != confirmPass) {
+                          SnackbarHelper.showTopSnackBar(
+                            context,
+                            "Confirm password incorrect",
+                            isError: true,
+                          );
+                          return;
+                        }
+
+                        String? passwordError = Validators.validatePassword(
+                          pass,
+                        );
+                        if (passwordError != null) {
+                          SnackbarHelper.showTopSnackBar(
+                            context,
+                            passwordError,
+                            isError: true,
+                          );
+                          return;
+                        }
+
+                        if (widget.buttonText == "UPDATE PASSWORD") {
+                          // API Integration for Reset Password (Forgot Pass)
+                          bool success = await authVM.resetPassword(
+                            widget.email,
+                            pass,
+                          );
+
+                          if (!context.mounted) return;
+
+                          if (success) {
+                            SnackbarHelper.showTopSnackBar(
+                              context,
+                              authVM.successMessage ??
+                                  "Password updated successfully!",
+                              isSuccess: true,
+                            );
+                            await Future.delayed(const Duration(seconds: 1));
+                            if (!context.mounted) return;
+
+                            // Success kay baad Login screen par bhej rhy hain
+                            Navigator.of(context).pushAndRemoveUntil(
+                              MaterialPageRoute(
+                                builder: (context) => const LoginScreen(),
+                              ),
+                              (route) => false,
+                            );
+                          } else {
+                            SnackbarHelper.showTopSnackBar(
+                              context,
+                              authVM.errorMessage ??
+                                  "Failed to update password",
+                              isError: true,
+                            );
+                          }
+                        } else {
+                          // API Integration for Create Password
+                          bool success = await authVM.createPassword(
+                            widget.email,
+                            pass,
+                          );
+
+                          if (!context.mounted) return;
+
+                          if (success) {
+                            SnackbarHelper.showTopSnackBar(
+                              context,
+                              authVM.successMessage ?? "Password created!",
+                              isSuccess: true,
+                            );
+                            await Future.delayed(const Duration(seconds: 1));
+                            if (!context.mounted) return;
+                            Navigator.of(context).pushAndRemoveUntil(
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const CreateProfileScreen(),
+                              ),
+                              (route) => false,
+                            );
+                          } else {
+                            SnackbarHelper.showTopSnackBar(
+                              context,
+                              authVM.errorMessage ??
+                                  "Failed to create password",
+                              isError: true,
+                            );
+                          }
+                        }
+                      },
+                    );
                   },
                 ),
               ),
