@@ -1,4 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -9,13 +8,13 @@ import 'package:npc/features/auth/otp_screen.dart';
 import 'package:npc/core/theme/text_styles.dart';
 import 'package:npc/core/widgets/custom_button.dart';
 import 'package:npc/core/widgets/custom_textfields.dart';
-import 'package:npc/core/services/auth_service.dart';
 import 'package:npc/core/utils/snackbar_helper.dart';
 import 'package:npc/core/utils/validators.dart';
 import 'package:npc/features/home/home_page_screen.dart';
 import 'package:npc/features/settings/create_profile_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:npc/view_models/auth_view_model.dart';
+import 'package:npc/view_models/profile_view_model.dart';
 
 // Naya account banane (Registration) ke liye screen
 class Signup extends StatefulWidget {
@@ -218,63 +217,64 @@ class _SignupState extends State<Signup> {
                   Center(
                     child: GestureDetector(
                       onTap: () async {
-                        // Google account se direct register/login flow shuru
-                        try {
-                          final result = await AuthService().signInWithGoogle();
+                        final authVM = Provider.of<AuthViewModel>(
+                          context,
+                          listen: false,
+                        );
+                        bool success = await authVM.signInWithGoogle();
+
+                        if (!context.mounted) return;
+
+                        if (success) {
+                          // Profile check kar rhe hain
+                          final profileVM = Provider.of<ProfileViewModel>(
+                            context,
+                            listen: false,
+                          );
+                          bool profileSuccess = await profileVM.getProfile();
+
                           if (!context.mounted) return;
 
-                          if (result != null) {
-                            final user = result['user'] as User?;
-                            final isNewUser = result['isNewUser'] as bool;
-
-                            if (user != null) {
-                              if (isNewUser) {
-                                // Agar naya user hai to profile creation pe jao
-                                Navigator.of(context).pushAndRemoveUntil(
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        const CreateProfileScreen(),
-                                  ),
-                                  (route) => false,
-                                );
-                              } else {
-                                // Existing user -> Check if profile is actually complete (Safety)
-                                final userData = await AuthService()
-                                    .getCurrentUserData();
-                                if (!context.mounted) return;
-
-                                bool isProfileIncomplete =
-                                    userData == null ||
-                                    userData['name'] == null ||
-                                    userData['name'].toString().trim().isEmpty;
-
-                                if (isProfileIncomplete) {
-                                  Navigator.of(context).pushAndRemoveUntil(
-                                    MaterialPageRoute(
-                                      builder: (context) =>
-                                          const CreateProfileScreen(),
-                                    ),
-                                    (route) => false,
-                                  );
-                                } else {
-                                  Navigator.of(context).pushAndRemoveUntil(
-                                    MaterialPageRoute(
-                                      builder: (context) =>
-                                          const HomePageScreen(),
-                                    ),
-                                    (route) => false,
-                                  );
-                                }
-                              }
-                            }
+                          if (!profileSuccess) {
+                            SnackbarHelper.showTopSnackBar(
+                              context,
+                              profileVM.errorMessage ??
+                                  "Failed to fetch profile.",
+                              isError: true,
+                            );
+                            return;
                           }
-                        } catch (e) {
+
                           SnackbarHelper.showTopSnackBar(
                             context,
-                            "Google Sign In Failed",
+                            authVM.successMessage ?? "Social Login Successful!",
+                            isSuccess: true,
+                          );
+
+                          // Profile complete check
+                          if (profileVM.userProfile?.name == null ||
+                              profileVM.userProfile!.name!.isEmpty) {
+                            Navigator.of(context).pushAndRemoveUntil(
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const CreateProfileScreen(isUpdate: false),
+                              ),
+                              (route) => false,
+                            );
+                          } else {
+                            Navigator.of(context).pushAndRemoveUntil(
+                              MaterialPageRoute(
+                                builder: (context) => const HomePageScreen(),
+                              ),
+                              (route) => false,
+                            );
+                          }
+                        } else if (authVM.errorMessage != null) {
+                          SnackbarHelper.showTopSnackBar(
+                            context,
+                            authVM.errorMessage!,
                             isError: true,
                           );
-                          if (mounted) {}
                         }
                       },
                       child: Container(

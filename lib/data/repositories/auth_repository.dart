@@ -127,4 +127,61 @@ class AuthRepository {
       rethrow;
     }
   }
+
+  // Logout karne wala function
+  Future<SignUpResponseModel> logout(Map<String, dynamic> data) async {
+    try {
+      dynamic response = await _apiService.postResponse(
+        ApiConstants.baseUrl + ApiConstants.logoutEndpoint,
+        data,
+      );
+      return SignUpResponseModel.fromJson(response);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // Social Login karne wala function
+  Future<SignUpResponseModel> socialLogin(Map<String, dynamic> data) async {
+    try {
+      dynamic response = await _apiService.postResponse(
+        ApiConstants.baseUrl + ApiConstants.socialLoginEndpoint,
+        data,
+      );
+      return SignUpResponseModel.fromJson(response);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // Account delete karne ke liye OTP mangwana
+  Future<Map<String, dynamic>> deleteAccount(String email) async {
+    try {
+      final Map<String, dynamic> data = {"email": email};
+      dynamic response = await _apiService.postResponse(
+        ApiConstants.baseUrl + ApiConstants.deleteAccountEndpoint,
+        data,
+      );
+      return response as Map<String, dynamic>;
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // Account delete verification (OTP match karna)
+  Future<Map<String, dynamic>> verifyDeleteAccount(
+    String email,
+    String otp,
+  ) async {
+    try {
+      final Map<String, dynamic> data = {"email": email, "otp": otp};
+      dynamic response = await _apiService.postResponse(
+        ApiConstants.baseUrl + ApiConstants.verifyDeleteAccountEndpoint,
+        data,
+      );
+      return response as Map<String, dynamic>;
+    } catch (e) {
+      rethrow;
+    }
+  }
 }

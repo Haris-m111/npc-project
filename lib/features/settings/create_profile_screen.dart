@@ -3,19 +3,19 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:npc/core/constants/app_assets.dart';
 import 'package:npc/features/home/home_page_screen.dart';
 import 'package:npc/core/constants/app_colors.dart';
 import 'package:npc/core/theme/text_styles.dart';
 import 'package:npc/core/widgets/custom_appbar.dart';
 import 'package:npc/core/widgets/custom_button.dart';
-import 'package:npc/core/widgets/custom_dialogue.dart';
 import 'package:npc/core/utils/image_helper.dart';
 import 'package:npc/core/widgets/custom_textfields.dart';
 import 'package:npc/core/utils/snackbar_helper.dart';
-import 'package:npc/core/services/auth_service.dart';
 import 'package:npc/core/widgets/custom_loading_indicator.dart';
+import 'package:npc/view_models/profile_view_model.dart';
+import 'package:npc/core/services/auth_service.dart';
 import 'package:npc/features/auth/login_screen.dart';
+import 'package:provider/provider.dart';
 
 // User ka profile banane ya update karne wala screen
 class CreateProfileScreen extends StatefulWidget {
@@ -30,42 +30,36 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
   File? imageFile;
   String? _existingImageBase64;
   final TextEditingController _nameController = TextEditingController();
-  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    _loadUserData();
+    // Agar hum update karny aaye hain, to purana data load kryn gay
+    if (widget.isUpdate) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _loadProfileData();
+      });
+    }
   }
 
-  // Pehle se majood user data Firestore se load karna
-  Future<void> _loadUserData() async {
-    setState(() => _isLoading = true);
-    try {
-      Map<String, dynamic>? userData = await AuthService().getCurrentUserData();
-      if (userData != null && mounted) {
+  Future<void> _loadProfileData() async {
+    final profileVM = Provider.of<ProfileViewModel>(context, listen: false);
+    bool success = await profileVM.getProfile();
+
+    if (success && mounted) {
+      final user = profileVM.userProfile;
+      if (user != null) {
         setState(() {
-          _nameController.text = userData['name'] ?? '';
-          _existingImageBase64 = userData['imageUrl'];
+          _nameController.text = user.name ?? "";
+          _existingImageBase64 = user.profilePicture;
         });
       }
-    } catch (e) {
-      if (mounted) {
-        SnackbarHelper.showTopSnackBar(
-          context,
-          "Error loading profile: $e",
-          isError: true,
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   @override
   void dispose() {
-    _nameController
-        .dispose(); // Memory bachanay ke liye controller khatam karna
+    _nameController.dispose();
     super.dispose();
   }
 
@@ -73,18 +67,21 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
   void _onImagesPicked(List<File> files) {
     if (files.isNotEmpty) {
       setState(() {
-        imageFile = files.first; // Pehli select ki gayi tasveer ko save karna
+        imageFile = files.first;
       });
     }
   }
 
-  // Back jane ka action (Agar update hai to back, warna sign out)
+  // Back jane ka action
   Future<void> _handleBackNavigation() async {
+    if (!mounted) return;
     if (widget.isUpdate) {
-      if (mounted) Navigator.pop(context);
+      Navigator.pop(context);
     } else {
-      // Pehli dafa profile banate waqt wapis jane par user ko logout karna padega
-      await AuthService().signOut();
+      // Agar onboarding flow (Signup/Login) se aaye hain, to wapis Login screen pr jao
+      // Bajaye iske ke app band ho jaye ya black screen aaye
+      await AuthService()
+          .signOut(); // Optional: User ko logout kr dena behtar hai
       if (mounted) {
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => const LoginScreen()),
@@ -193,15 +190,20 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                                                             error,
                                                             stackTrace,
                                                           ) {
-                                                            return Image.asset(
-                                                              AppAssets
-                                                                  .dummyProfile,
+                                                            return Container(
                                                               width: 130,
                                                               height: 130,
-                                                              fit: BoxFit.cover,
-                                                              filterQuality:
-                                                                  FilterQuality
-                                                                      .high,
+                                                              color: AppColors
+                                                                  .surface,
+                                                              child: Icon(
+                                                                Icons.person,
+                                                                size: 80,
+                                                                color: AppColors
+                                                                    .iconGrey
+                                                                    .withAlpha(
+                                                                      100,
+                                                                    ),
+                                                              ),
                                                             );
                                                           },
                                                     )
@@ -215,14 +217,16 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                                                       filterQuality:
                                                           FilterQuality.high,
                                                     ))
-                                            : Image.asset(
-                                                AppAssets
-                                                    .dummyProfile, // Default tasveer
+                                            : Container(
                                                 width: 130,
                                                 height: 130,
-                                                fit: BoxFit.cover,
-                                                filterQuality:
-                                                    FilterQuality.high,
+                                                color: AppColors.surface,
+                                                child: Icon(
+                                                  Icons.person,
+                                                  size: 80,
+                                                  color: AppColors.iconGrey
+                                                      .withAlpha(100),
+                                                ),
                                               )),
                                 ),
                               ),
@@ -274,142 +278,93 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                 ),
                 Padding(
                   padding: EdgeInsets.fromLTRB(20.w, 0, 20.w, 12.h),
-                  child: _isLoading
-                      ? const CustomLoadingIndicator()
-                      : CustomButton(
-                          text: widget.isUpdate
-                              ? "UPDATE PROFILE"
-                              : "CREATE PROFILE",
-                          onPressed: () async {
-                            FocusScope.of(context).unfocus(); // Close keyboard
-                            if (widget.isUpdate) {
-                              String name = _nameController.text.trim();
-                              if (name.isEmpty) {
-                                SnackbarHelper.showTopSnackBar(
+                  child: Consumer<ProfileViewModel>(
+                    builder: (context, profileVM, child) {
+                      return profileVM.isLoading
+                          ? const CustomLoadingIndicator()
+                          : CustomButton(
+                              text: widget.isUpdate
+                                  ? "UPDATE PROFILE"
+                                  : "CREATE PROFILE",
+                              onPressed: () async {
+                                FocusScope.of(
                                   context,
-                                  "Please enter your name",
-                                  isError: true,
-                                );
-                                return;
-                              }
+                                ).unfocus(); // Close keyboard
 
-                              setState(() => _isLoading = true);
-
-                              try {
-                                // Yeh check karna ke kya yeh naam koi aur to use nahi kar raha
-                                bool isTaken = await AuthService().isNameTaken(
-                                  name,
-                                  excludeUid: AuthService().currentUser?.uid,
-                                );
-
-                                if (isTaken) {
-                                  if (!context.mounted) return;
+                                String name = _nameController.text.trim();
+                                if (name.isEmpty) {
                                   SnackbarHelper.showTopSnackBar(
                                     context,
-                                    "This name is already taken. Please choose another one.",
+                                    "Please enter your name",
                                     isError: true,
                                   );
                                   return;
                                 }
 
-                                // Firestore mein user ki profile update karna
-                                await AuthService().updateUserProfile(
-                                  name: name,
-                                  imageFile: imageFile,
-                                );
-
-                                if (!context.mounted) return;
-                                // Success message dikhana
-                                showDialog(
-                                  context: context,
-                                  barrierDismissible: false,
-                                  builder: (context) => const CustomDialogue(
-                                    title: "Profile Updated",
-                                  ),
-                                );
-                                Future.delayed(const Duration(seconds: 2), () {
-                                  if (context.mounted) {
-                                    Navigator.pop(context); // Dialog band karna
-                                    Navigator.of(
-                                      context,
-                                    ).pop(); // Pichli screen pe jana
+                                // Image ko handle krna (Base64 format me convert krty hain)
+                                String? profilePic;
+                                if (imageFile != null) {
+                                  try {
+                                    final bytes = await imageFile!
+                                        .readAsBytes();
+                                    profilePic = base64Encode(bytes);
+                                  } catch (e) {
+                                    debugPrint("Image processing error: $e");
                                   }
-                                });
-                              } catch (e) {
-                                if (context.mounted) {
-                                  SnackbarHelper.showTopSnackBar(
-                                    context,
-                                    "Error: $e",
-                                    isError: true,
-                                  );
-                                }
-                              } finally {
-                                if (mounted) setState(() => _isLoading = false);
-                              }
-                            } else {
-                              String name = _nameController.text.trim();
-                              if (name.isEmpty) {
-                                SnackbarHelper.showTopSnackBar(
-                                  context,
-                                  "Please enter your name",
-                                  isError: true,
-                                );
-                                return;
-                              }
-
-                              setState(() => _isLoading = true);
-
-                              try {
-                                // Naam ki uniqueness check karna
-                                bool isTaken = await AuthService().isNameTaken(
-                                  name,
-                                  excludeUid: AuthService().currentUser?.uid,
-                                );
-
-                                if (isTaken) {
-                                  if (!context.mounted) return;
-                                  SnackbarHelper.showTopSnackBar(
-                                    context,
-                                    "This name is already taken. Please choose another one.",
-                                    isError: true,
-                                  );
-                                  return;
+                                } else if (_existingImageBase64 != null) {
+                                  // Agar nayi image nahi li to puraani wali use kro
+                                  profilePic = _existingImageBase64;
                                 }
 
-                                // Naya profile record Firestore mein save karna
-                                await AuthService().saveUserProfile(
-                                  name: name,
-                                  imageFile: imageFile,
-                                );
-
-                                // Thoda intezar (smooth display ke liye)
-                                await Future.delayed(
-                                  const Duration(milliseconds: 1000),
-                                );
+                                bool success;
+                                if (widget.isUpdate) {
+                                  success = await profileVM.updateProfile(
+                                    name,
+                                    profilePic,
+                                  );
+                                } else {
+                                  success = await profileVM.createProfile(
+                                    name,
+                                    profilePic,
+                                  );
+                                }
 
                                 if (!context.mounted) return;
-                                // Home screen per navigate karna
-                                Navigator.of(context).pushAndRemoveUntil(
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        const HomePageScreen(),
-                                  ),
-                                  (route) => false,
-                                );
-                              } catch (e) {
-                                if (context.mounted) {
+
+                                if (success) {
                                   SnackbarHelper.showTopSnackBar(
                                     context,
-                                    "Error: $e",
+                                    profileVM.successMessage ??
+                                        (widget.isUpdate
+                                            ? "Profile updated successfully!"
+                                            : "Profile created successfully!"),
+                                    isSuccess: true,
+                                  );
+
+                                  if (widget.isUpdate) {
+                                    Navigator.of(context).pop();
+                                  } else {
+                                    // Home screen per navigate karna
+                                    Navigator.of(context).pushAndRemoveUntil(
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            const HomePageScreen(),
+                                      ),
+                                      (route) => false,
+                                    );
+                                  }
+                                } else {
+                                  SnackbarHelper.showTopSnackBar(
+                                    context,
+                                    profileVM.errorMessage ??
+                                        "Failed to create profile",
                                     isError: true,
                                   );
                                 }
-                              } finally {
-                                if (mounted) setState(() => _isLoading = false);
-                              }
-                            }
-                          },
-                        ),
+                              },
+                            );
+                    },
+                  ),
                 ),
               ],
             ),

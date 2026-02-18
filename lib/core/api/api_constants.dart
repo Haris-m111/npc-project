@@ -30,4 +30,32 @@ class ApiConstants {
 
   // Refresh Token ka endpoint
   static const String refreshTokenEndpoint = '/auth/refresh-token';
+
+  // Logout ka endpoint
+  static const String logoutEndpoint = '/auth/logout';
+  static const String deleteAccountEndpoint = '/auth/delete-account';
+  static const String verifyDeleteAccountEndpoint =
+      '/auth/verify-delete-account';
+
+  // Social Login ka endpoint
+  static const String socialLoginEndpoint = '/auth/social-login';
+
+  // Profile endpoints (User ki information handle karne ke liye)
+  static const String createProfileEndpoint =
+      '/profile/create'; // Profile banane ke liye
+  static const String getProfileEndpoint =
+      '/profile/get'; // Profile mangwane ke liye
+  static const String updateProfileEndpoint =
+      '/profile/update'; // Profile badalne ke liye
+  static const String deleteProfileEndpoint =
+      '/profile/delete'; // Profile khatam karne ke liye
+
+  // Quest endpoints (Tasks aur activities handle karne ke liye)
+  static const String allQuestsEndpoint = '/quests/all-quests';
+  static const String myQuestsEndpoint = '/quests/my-quests';
+  static const String createQuestEndpoint = '/quests';
+  static const String updateQuestStatusEndpoint =
+      '/quests'; // /quests/{id}/{action} ke liye base
+  static const String userCoinsEndpoint = '/user/coins';
+  static const String teamQuestsByUserIdEndpoint = '/quests/user';
 }

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:npc/data/repositories/auth_repository.dart';
+import 'package:npc/core/api/base_api_service.dart';
 import 'package:npc/core/services/token_service.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'dart:io';
 
 // ViewModel UI ki state manage karti ha aur business logic handle karti ha
 class AuthViewModel with ChangeNotifier {
@@ -57,11 +60,25 @@ class AuthViewModel with ChangeNotifier {
 
     try {
       final response = await _authRepository.verifyOtp(data);
-      _successMessage = response.message;
+      // Verify OTP Signup success: Status 200
+      _successMessage = "Signup verified successfully";
+
+      // Agar API tokens deti hai (Signup flow), to save kryn
+      if (response.accessToken != null && response.refreshToken != null) {
+        await _tokenService.saveTokens(
+          response.accessToken!,
+          response.refreshToken!,
+        );
+      }
+
       _setLoading(false);
       return true;
     } catch (e) {
-      _errorMessage = e.toString();
+      if (e is ApiException && e.statusCode == 400) {
+        _errorMessage = "Invalid or expired OTP or already verified";
+      } else {
+        _errorMessage = e.toString();
+      }
       _setLoading(false);
       return false;
     }
@@ -76,12 +93,17 @@ class AuthViewModel with ChangeNotifier {
     final Map<String, dynamic> data = {"email": email};
 
     try {
-      final response = await _authRepository.resendSignupOtp(data);
-      _successMessage = response.message;
+      await _authRepository.resendSignupOtp(data);
+      // Resend OTP success: Status 200
+      _successMessage = "OTP resent successfully";
       _setLoading(false);
       return true;
     } catch (e) {
-      _errorMessage = e.toString();
+      if (e is ApiException && e.statusCode == 400) {
+        _errorMessage = "Invalid request (e.g., already verified)";
+      } else {
+        _errorMessage = e.toString();
+      }
       _setLoading(false);
       return false;
     }
@@ -97,11 +119,25 @@ class AuthViewModel with ChangeNotifier {
 
     try {
       final response = await _authRepository.createPassword(data);
-      _successMessage = response.message;
+      // Create Password success: Status 200
+      _successMessage = "Password set successfully";
+
+      // Password creation ke baad aksar tokens milte hain taake user login ho jaye
+      if (response.accessToken != null && response.refreshToken != null) {
+        await _tokenService.saveTokens(
+          response.accessToken!,
+          response.refreshToken!,
+        );
+      }
+
       _setLoading(false);
       return true;
     } catch (e) {
-      _errorMessage = e.toString();
+      if (e is ApiException && e.statusCode == 403) {
+        _errorMessage = "OTP not verified or user not found";
+      } else {
+        _errorMessage = e.toString();
+      }
       _setLoading(false);
       return false;
     }
@@ -117,7 +153,8 @@ class AuthViewModel with ChangeNotifier {
 
     try {
       final response = await _authRepository.signIn(data);
-      _successMessage = response.message;
+      // SignIn success: Status 200
+      _successMessage = "Login successful";
 
       // Tokens save kr rhe hain
       if (response.accessToken != null && response.refreshToken != null) {
@@ -125,12 +162,24 @@ class AuthViewModel with ChangeNotifier {
           response.accessToken!,
           response.refreshToken!,
         );
+        // DEBUG: Swagger ke liye token print karwa rhe hain
+        print("DEBUG_TOKEN (Copy this for Swagger): ${response.accessToken}");
       }
 
       _setLoading(false);
       return true;
     } catch (e) {
-      _errorMessage = e.toString();
+      if (e is ApiException) {
+        if (e.statusCode == 401) {
+          _errorMessage = "Incorrect password";
+        } else if (e.statusCode == 403) {
+          _errorMessage = "Invalid or unverified user";
+        } else {
+          _errorMessage = e.message;
+        }
+      } else {
+        _errorMessage = e.toString();
+      }
       _setLoading(false);
       return false;
     }
@@ -145,8 +194,9 @@ class AuthViewModel with ChangeNotifier {
     final Map<String, dynamic> data = {"email": email};
 
     try {
-      final response = await _authRepository.forgotPassword(data);
-      _successMessage = response.message;
+      await _authRepository.forgotPassword(data);
+      // Forgot Password success: Status 200
+      _successMessage = "OTP sent for password reset";
       _setLoading(false);
       return true;
     } catch (e) {
@@ -165,12 +215,17 @@ class AuthViewModel with ChangeNotifier {
     final Map<String, dynamic> data = {"email": email, "otp": otp};
 
     try {
-      final response = await _authRepository.verifyOtpForgotPassword(data);
-      _successMessage = response.message;
+      await _authRepository.verifyOtpForgotPassword(data);
+      // Verify OTP Forgot success: Status 200
+      _successMessage = "OTP verified";
       _setLoading(false);
       return true;
     } catch (e) {
-      _errorMessage = e.toString();
+      if (e is ApiException && e.statusCode == 400) {
+        _errorMessage = "Invalid or expired OTP";
+      } else {
+        _errorMessage = e.toString();
+      }
       _setLoading(false);
       return false;
     }
@@ -185,12 +240,17 @@ class AuthViewModel with ChangeNotifier {
     final Map<String, dynamic> data = {"email": email, "newPassword": password};
 
     try {
-      final response = await _authRepository.resetPassword(data);
-      _successMessage = response.message;
+      await _authRepository.resetPassword(data);
+      // Reset Password success: Status 200
+      _successMessage = "Password reset successfully";
       _setLoading(false);
       return true;
     } catch (e) {
-      _errorMessage = e.toString();
+      if (e is ApiException && e.statusCode == 403) {
+        _errorMessage = "Reset not allowed";
+      } else {
+        _errorMessage = e.toString();
+      }
       _setLoading(false);
       return false;
     }
@@ -206,7 +266,8 @@ class AuthViewModel with ChangeNotifier {
 
     try {
       final response = await _authRepository.refreshToken(data);
-      _successMessage = response.message;
+      // Refresh Token success: Status 200
+      _successMessage = "New tokens issued";
 
       // Naye tokens save kr rhe hain
       if (response.accessToken != null && response.refreshToken != null) {
@@ -219,7 +280,158 @@ class AuthViewModel with ChangeNotifier {
       _setLoading(false);
       return true;
     } catch (e) {
+      if (e is ApiException && e.statusCode == 403) {
+        _errorMessage = "Invalid or expired refresh token";
+      } else {
+        _errorMessage = e.toString();
+      }
+      _setLoading(false);
+      return false;
+    }
+  }
+
+  // Logout karne ka logic
+  Future<bool> logout() async {
+    _setLoading(true);
+    _errorMessage = null;
+    _successMessage = null;
+
+    try {
+      final refreshToken = await _tokenService.getRefreshToken();
+      if (refreshToken != null) {
+        final Map<String, dynamic> data = {"refreshToken": refreshToken};
+        await _authRepository.logout(data);
+      }
+
+      // Tokens locally clear kr rhe hain
+      await _tokenService.clearTokens();
+      _successMessage = "Logged out successfully";
+
+      _setLoading(false);
+      return true;
+    } catch (e) {
+      // Agar logout fail bhi ho jaye (e.g. token expire),
+      // phir bhi hum locally logout kr dain gay
+      await _tokenService.clearTokens();
       _errorMessage = e.toString();
+      _setLoading(false);
+      return false;
+    }
+  }
+
+  // Google Sign In karne ka logic (Social Login)
+  Future<bool> signInWithGoogle() async {
+    _setLoading(true);
+    _errorMessage = null;
+    _successMessage = null;
+
+    try {
+      final GoogleSignIn googleSignIn = GoogleSignIn();
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+
+      if (googleUser == null) {
+        _setLoading(false);
+        return false; // User ne cancel kr diya
+      }
+
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
+      final String? idToken = googleAuth.idToken;
+
+      if (idToken == null) {
+        _errorMessage = "Google ID Token not found.";
+        _setLoading(false);
+        return false;
+      }
+
+      final Map<String, dynamic> data = {
+        "provider": "google",
+        "token": idToken,
+        "platform": Platform.isAndroid ? "android" : "ios",
+        "role": "user",
+      };
+
+      final response = await _authRepository.socialLogin(data);
+
+      // Tokens save kr rhe hain
+      if (response.accessToken != null && response.refreshToken != null) {
+        await _tokenService.saveTokens(
+          response.accessToken!,
+          response.refreshToken!,
+        );
+      }
+
+      _successMessage = "Social login successful";
+      _setLoading(false);
+      return true;
+    } catch (e) {
+      if (e is ApiException) {
+        if (e.statusCode == 400) {
+          _errorMessage = "Missing or unsupported provider or token";
+        } else if (e.statusCode == 500) {
+          _errorMessage = "Social login failed due to server error";
+        } else {
+          _errorMessage = e.message;
+        }
+      } else {
+        _errorMessage = e.toString();
+      }
+      _setLoading(false);
+      return false;
+    }
+  }
+
+  // Account delete karne ke liye OTP mangwane ka logic
+  Future<bool> deleteAccount(String email) async {
+    _setLoading(true);
+    _errorMessage = null;
+    _successMessage = null;
+
+    try {
+      await _authRepository.deleteAccount(email);
+      _successMessage = "OTP sent for account deletion";
+      _setLoading(false);
+      return true;
+    } catch (e) {
+      if (e is ApiException) {
+        if (e.statusCode == 404) {
+          _errorMessage = "User not found";
+        } else {
+          _errorMessage = e.message;
+        }
+      } else {
+        _errorMessage = e.toString();
+      }
+      _setLoading(false);
+      return false;
+    }
+  }
+
+  // Account delete verification ka logic
+  Future<bool> verifyDeleteAccount(String email, String otp) async {
+    _setLoading(true);
+    _errorMessage = null;
+    _successMessage = null;
+
+    try {
+      await _authRepository.verifyDeleteAccount(email, otp);
+
+      // Account delete ho gaya, tokens clear kr dain gay
+      await _tokenService.clearTokens();
+
+      _successMessage = "Account deleted";
+      _setLoading(false);
+      return true;
+    } catch (e) {
+      if (e is ApiException) {
+        if (e.statusCode == 400) {
+          _errorMessage = "Invalid or expired OTP";
+        } else {
+          _errorMessage = e.message;
+        }
+      } else {
+        _errorMessage = e.toString();
+      }
       _setLoading(false);
       return false;
     }

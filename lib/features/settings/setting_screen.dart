@@ -15,6 +15,8 @@ import 'package:npc/features/settings/task_approval_screen.dart';
 import 'package:npc/core/services/auth_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:npc/core/widgets/custom_loading_indicator.dart';
+import 'package:provider/provider.dart';
+import 'package:npc/view_models/auth_view_model.dart';
 
 // App ki tamama settings ka main screen jahan different options hain
 class SettingScreen extends StatefulWidget {
@@ -188,16 +190,25 @@ class _SettingScreenState extends State<SettingScreen> {
                                   const Duration(seconds: 2),
                                 );
 
-                                // Sign out karna
-                                await AuthService().signOut();
+                                // Sign out karna (Custom API integration)
+                                final authVM = Provider.of<AuthViewModel>(
+                                  context,
+                                  listen: false,
+                                );
+                                await authVM.logout();
 
                                 // Login screen per wapis bhejna
-                                navigator.pushAndRemoveUntil(
-                                  MaterialPageRoute(
-                                    builder: (context) => const LoginScreen(),
-                                  ),
-                                  (route) => false,
-                                );
+                                if (context.mounted) {
+                                  Navigator.of(
+                                    context,
+                                    rootNavigator: true,
+                                  ).pushAndRemoveUntil(
+                                    MaterialPageRoute(
+                                      builder: (context) => const LoginScreen(),
+                                    ),
+                                    (route) => false,
+                                  );
+                                }
                               } catch (e) {
                                 debugPrint("Logout error: $e");
                                 navigator.pushAndRemoveUntil(

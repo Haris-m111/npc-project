@@ -4,18 +4,32 @@ import 'package:npc/core/constants/app_colors.dart';
 import 'package:npc/core/theme/text_styles.dart';
 import 'package:npc/core/constants/app_assets.dart';
 
+import 'package:npc/data/models/quest_model.dart';
+
 // List mein individual quest (Task) ki mukhtasir maloomat dikhanay wala card
 class QuestCard extends StatelessWidget {
-  final String title; // Quest ka unwan (Title)
-  final String? description; // Quest ki tafseel (Optional)
-  final String? deadline; // Khatam karne ki tareekh (Optional)
+  final QuestModel quest;
 
-  const QuestCard({
-    super.key,
-    required this.title,
-    this.description,
-    this.deadline,
-  });
+  const QuestCard({super.key, required this.quest});
+
+  String _formatDate(DateTime? date) {
+    if (date == null) return "No Deadline";
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${months[date.month - 1]} ${date.day}, ${date.year}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,7 +45,7 @@ class QuestCard extends StatelessWidget {
         children: [
           // Quest ka title (Sirf ek line mein dikhaya jayega)
           Text(
-            "$title ",
+            "${quest.title} ",
             style: AppTextStyles.heading1medium.copyWith(fontSize: 18.sp),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -43,7 +57,7 @@ class QuestCard extends StatelessWidget {
               Image.asset(AppAssets.calendarIcon, width: 20.w, height: 20.h),
               SizedBox(width: 5.w),
               Text(
-                deadline ?? "Deadline: Mar 5, 2025",
+                "Deadline: ${_formatDate(quest.dueDate)}",
                 style: AppTextStyles.body.copyWith(
                   color: AppColors.textDarkGrey,
                   fontSize: 16.sp,
@@ -54,8 +68,7 @@ class QuestCard extends StatelessWidget {
           SizedBox(height: 8.h),
           // Quest ki tafseel (Sirf do lines dikhayi jayengi)
           Text(
-            description ??
-                "Lorem ipsum dolor sit amet, consectetur \nadipiscing elit...",
+            quest.description ?? "No description provided.",
             style: AppTextStyles.body.copyWith(
               fontSize: 16.sp,
               color: AppColors.textDarkGrey,

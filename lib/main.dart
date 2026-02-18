@@ -5,13 +5,19 @@ import 'package:npc/features/onboarding/splash_screen.dart';
 import 'package:npc/firebase_options.dart';
 import 'package:provider/provider.dart';
 import 'package:npc/view_models/auth_view_model.dart';
+import 'package:npc/view_models/profile_view_model.dart';
+import 'package:npc/view_models/quest_view_model.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(
     MultiProvider(
-      providers: [ChangeNotifierProvider(create: (_) => AuthViewModel())],
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthViewModel()),
+        ChangeNotifierProvider(create: (_) => ProfileViewModel()),
+        ChangeNotifierProvider(create: (_) => QuestViewModel()),
+      ],
       child: const MyApp(),
     ),
   );

@@ -5,11 +5,10 @@ import 'package:npc/features/auth/otp_screen.dart';
 import 'package:npc/core/theme/text_styles.dart';
 import 'package:npc/core/widgets/custom_appbar.dart';
 import 'package:npc/core/widgets/custom_button.dart';
-import 'package:npc/core/constants/app_assets.dart';
-import 'package:npc/core/widgets/custom_textfields.dart';
-import 'package:npc/core/widgets/custom_loading_indicator.dart';
-import 'package:npc/core/services/auth_service.dart';
 import 'package:npc/core/utils/snackbar_helper.dart';
+import 'package:npc/view_models/profile_view_model.dart';
+import 'package:provider/provider.dart';
+import 'package:npc/view_models/auth_view_model.dart';
 
 // User ka apna account permanently delete karne wala screen
 class DeleteAccountScreen extends StatefulWidget {
@@ -20,17 +19,6 @@ class DeleteAccountScreen extends StatefulWidget {
 }
 
 class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
-  final TextEditingController _passwordController =
-      TextEditingController(); // Password input control karne ke liye
-  bool _isLoading = false; // Button pe loading animation dikhanay ke liye
-
-  @override
-  void dispose() {
-    _passwordController
-        .dispose(); // Memory bachanay ke liye controller khatam karna
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -89,19 +77,11 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
 
                       SizedBox(height: 16.h),
 
-                      // Password enter karne wala field
-                      CustomTextfields(
-                        controller: _passwordController,
-                        hintText: "Enter your password",
-                        isPassword: true,
-                        prefixIconPath: AppAssets.lockIcon,
-                      ),
-
                       SizedBox(height: 16.h),
 
                       // Paragraph 3 (Warning)
                       Text(
-                        "To delete your account, please enter your password in the field below and confirm your decision by clicking the 'Delete My Account' button.",
+                        "To delete your account, please confirm your decision by clicking the 'Delete My Account' button. A verification OTP will be sent to your email.",
                         style: AppTextStyles.bodysmall.copyWith(height: 1.5),
                         textAlign: TextAlign.justify,
                       ),
@@ -112,76 +92,68 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                 ),
               ),
 
-              // Delete button pe click ka action: Password check aur OTP send karna
+              // Delete button pe click ka action: OTP mangwana
               Padding(
                 padding: EdgeInsets.fromLTRB(20.w, 0, 20.w, 12.h),
-                child: _isLoading
-                    ? const CustomLoadingIndicator()
-                    : CustomButton(
-                        text: "DELETE ACCOUNT",
-                        onPressed: () async {
-                          FocusScope.of(context).unfocus();
+                child: Consumer<AuthViewModel>(
+                  builder: (context, authVM, child) {
+                    return CustomButton(
+                      isLoading: authVM.isLoading,
+                      text: "DELETE ACCOUNT",
+                      onPressed: () async {
+                        FocusScope.of(context).unfocus();
 
-                          String password = _passwordController.text.trim();
-                          if (password.isEmpty) {
-                            SnackbarHelper.showTopSnackBar(
-                              context,
-                              "Please enter your password",
-                              isError: true,
-                            );
-                            return;
-                          }
+                        // User ka email nikalna (ProfileViewModel se le saktay hain ya manual input)
+                        // Is screen me hum email get karain gay ProfileViewModel se
+                        final profileVM = Provider.of<ProfileViewModel>(
+                          context,
+                          listen: false,
+                        );
+                        String? email = profileVM.userProfile?.email;
 
-                          setState(() => _isLoading = true);
+                        if (email == null || email.isEmpty) {
+                          SnackbarHelper.showTopSnackBar(
+                            context,
+                            "User email not found. Please try again.",
+                            isError: true,
+                          );
+                          return;
+                        }
 
-                          try {
-                            // User ka email nikalna taake OTP bheja ja sakay
-                            String? email = AuthService().getCurrentUserEmail();
-                            if (email == null) {
-                              throw Exception("Unable to get user email");
-                            }
+                        // API call: OTP mangnay ke liye
+                        bool success = await authVM.deleteAccount(email);
 
-                            // Re-authenticate: Password check karna ke sahi hai ya nahi
-                            await AuthService().reauthenticateUser(password);
+                        if (!context.mounted) return;
 
-                            // Send OTP to email (Tasdeeqi code bhejna)
-                            bool otpSent = await AuthService().sendOtp(email);
-                            if (!otpSent) {
-                              throw Exception("Failed to send OTP");
-                            }
+                        if (success) {
+                          SnackbarHelper.showTopSnackBar(
+                            context,
+                            authVM.successMessage ?? "OTP sent to your email",
+                            isSuccess: true,
+                          );
 
-                            if (!context.mounted) return;
-                            setState(() => _isLoading = false);
+                          await Future.delayed(const Duration(seconds: 1));
+                          if (!context.mounted) return;
 
-                            SnackbarHelper.showTopSnackBar(
-                              context,
-                              "OTP has been sent to your email",
-                              isSuccess: true,
-                            );
-
-                            await Future.delayed(const Duration(seconds: 1));
-                            if (!context.mounted) return;
-
-                            // OTP screen per jana account delete confirm karne ke liye
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    OtpScreen(isfromdelete: true, email: email),
-                              ),
-                            );
-                          } catch (e) {
-                            if (mounted) {
-                              setState(() => _isLoading = false);
-                              SnackbarHelper.showTopSnackBar(
-                                context,
-                                e.toString().replaceAll('Exception: ', ''),
-                                isError: true,
-                              );
-                            }
-                          }
-                        },
-                      ),
+                          // OTP screen pr bhejna account deletion confirm krnay ke liye
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  OtpScreen(isfromdelete: true, email: email),
+                            ),
+                          );
+                        } else {
+                          SnackbarHelper.showTopSnackBar(
+                            context,
+                            authVM.errorMessage ?? "Failed to send OTP",
+                            isError: true,
+                          );
+                        }
+                      },
+                    );
+                  },
+                ),
               ),
             ],
           ),

@@ -2,18 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:npc/core/constants/app_colors.dart';
 import 'package:npc/core/theme/text_styles.dart';
-import 'package:npc/features/home/completed_quest_detail_screen.dart';
 import 'package:npc/core/constants/app_assets.dart';
-import 'package:npc/features/tasks/data/task_model.dart';
+import 'package:npc/data/models/quest_model.dart';
+import 'package:npc/core/utils/snackbar_helper.dart';
 
 // Khatam shuda (Completed/Submitted) tasks ko list mein dikhanay wala card
 class CompletedQuestCard extends StatelessWidget {
-  final TaskModel task;
+  final QuestModel quest;
 
-  const CompletedQuestCard({super.key, required this.task});
+  const CompletedQuestCard({super.key, required this.quest});
 
   // Date ko asan format mein badalnay ke liye function (e.g. Jan 10, 2024)
-  String _formatDate(DateTime date) {
+  String _formatDate(DateTime? date) {
+    if (date == null) return "No Date";
     const months = [
       'Jan',
       'Feb',
@@ -33,21 +34,21 @@ class CompletedQuestCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final status = task.status;
+    final status = quest.status ?? "Completed";
     String displayStatus = status;
     Color statusColor;
     Color statusTextColor;
 
-    // Task ke status ke mutabiq colors aur text set karna
-    if (status == 'Submitted' || status == 'Completed') {
-      displayStatus = 'Completed';
+    // Task ke status ke mutabiq colors aur text set karna (API statuses)
+    if (status == 'submitted' || status == 'completed' || status == 'pending') {
+      displayStatus = status[0].toUpperCase() + status.substring(1);
       statusColor = AppColors.primary.withValues(alpha: 0.1);
       statusTextColor = AppColors.primary;
-    } else if (status == 'Approved') {
+    } else if (status == 'approved') {
       displayStatus = 'Approved';
       statusColor = AppColors.primary.withValues(alpha: 0.6);
       statusTextColor = Colors.white;
-    } else if (status == 'Rejected') {
+    } else if (status == 'rejected') {
       displayStatus = 'Rejected';
       statusColor = AppColors.errorRed.withValues(alpha: 0.1);
       statusTextColor = AppColors.errorRed;
@@ -59,12 +60,7 @@ class CompletedQuestCard extends StatelessWidget {
     return GestureDetector(
       onTap: () {
         // Card pe click karne se task ki detail screen khulegi
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => CompletedQuestDetailScreen(task: task),
-          ),
-        );
+        SnackbarHelper.showTopSnackBar(context, "Quest Details coming soon!");
       },
       child: Container(
         margin: EdgeInsets.only(bottom: 12.h),
@@ -80,9 +76,15 @@ class CompletedQuestCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  task.title,
-                  style: AppTextStyles.heading1medium.copyWith(fontSize: 18.sp),
+                Expanded(
+                  child: Text(
+                    quest.title ?? "No Title",
+                    style: AppTextStyles.heading1medium.copyWith(
+                      fontSize: 18.sp,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
                 Container(
                   padding: EdgeInsets.symmetric(
@@ -111,7 +113,7 @@ class CompletedQuestCard extends StatelessWidget {
                 Image.asset(AppAssets.calendarIcon, width: 18.w, height: 18.h),
                 SizedBox(width: 8.w),
                 Text(
-                  "Deadline: ${_formatDate(task.deadline)}",
+                  "Deadline: ${_formatDate(quest.dueDate)}",
                   style: AppTextStyles.body.copyWith(
                     color: AppColors.textDarkGrey,
                     fontSize: 15.sp,
@@ -121,13 +123,13 @@ class CompletedQuestCard extends StatelessWidget {
             ),
             SizedBox(height: 6.h),
 
-            // Jis tareekh ko task jama (Submit) kiya gaya
+            // Jis tareekh ko task bana (Created On)
             Row(
               children: [
                 Image.asset(AppAssets.doneIcon, width: 18.w, height: 18.h),
                 SizedBox(width: 8.w),
                 Text(
-                  "Submitted On: ${_formatDate(task.createdAt)}",
+                  "Created On: ${_formatDate(quest.createdAt)}",
                   style: AppTextStyles.body.copyWith(
                     color: AppColors.textDarkGrey,
                     fontSize: 15.sp,
@@ -138,12 +140,12 @@ class CompletedQuestCard extends StatelessWidget {
 
             SizedBox(height: 8.h),
 
-            // Task ki description (Sirf pehli 50 characters dikhayi jayengi)
+            // Task ki description
             Text(
-              task.description.isNotEmpty
-                  ? (task.description.length > 50
-                        ? "${task.description.substring(0, 50)}..."
-                        : task.description)
+              (quest.description != null && quest.description!.isNotEmpty)
+                  ? (quest.description!.length > 50
+                        ? "${quest.description!.substring(0, 50)}..."
+                        : quest.description!)
                   : "No description provided.",
               style: AppTextStyles.body.copyWith(
                 fontSize: 16.sp,

@@ -2,7 +2,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:email_otp/email_otp.dart';
 import 'dart:io';
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
@@ -74,35 +73,44 @@ class AuthService {
     await _auth.sendPasswordResetEmail(email: email);
   }
 
-  // User ka naam aur profile picture update karta hai
-  Future<void> updateUserProfile({
-    required String name,
-    File? imageFile,
+  // Naya user account banata hai (Signup ka pehla step)
+  Future<UserCredential> createAuthUser({
+    required String email,
+    required String password,
   }) async {
-    User? user = _auth.currentUser;
-    if (user == null) return;
+    UserCredential credential = await _auth.createUserWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
 
-    Map<String, dynamic> updateData = {
-      'uid': user.uid,
-      'name': name,
-      'email': user.email ?? "",
-    };
-
-    if (imageFile != null) {
-      try {
-        final bytes = await imageFile.readAsBytes();
-        String imageBase64 = base64Encode(bytes);
-        updateData['imageUrl'] = imageBase64;
-      } catch (e) {
-        debugPrint("Image processing error: $e");
-      }
+    // Immediately create Firestore placeholder for Auth-linked data
+    if (credential.user != null) {
+      await _firestore.collection('users').doc(credential.user!.uid).set({
+        'uid': credential.user!.uid,
+        'email': email.toLowerCase(),
+        'createdAt': FieldValue.serverTimestamp(),
+      });
     }
 
-    // Use set with merge true to be robust (works for create and update)
-    await _firestore
-        .collection('users')
-        .doc(user.uid)
-        .set(updateData, SetOptions(merge: true));
+    return credential;
+  }
+
+  // Email aur Password ke zariye login karta hai
+  Future<void> login(String email, String password) async {
+    await _auth.signInWithEmailAndPassword(email: email, password: password);
+  }
+
+  // Firestore se login user ka data lata hai (Legacy/Task context ke liye)
+  Future<Map<String, dynamic>?> getCurrentUserData() async {
+    User? user = _auth.currentUser;
+    if (user != null) {
+      DocumentSnapshot doc = await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      return doc.data() as Map<String, dynamic>?;
+    }
+    return null;
   }
 
   // Puraani password verify karke naya password set karta hai
@@ -188,60 +196,10 @@ class AuthService {
     }
   }
 
-  // User ke data mein honay wali tabdeeliyaan real-time mein dekhta hai
-  Stream<DocumentSnapshot> getUserStream() {
-    String uid = _auth.currentUser?.uid ?? '';
-    return _firestore.collection('users').doc(uid).snapshots();
-  }
-
-  // Naya user account banata hai (Signup ka pehla step)
-  Future<UserCredential> createAuthUser({
-    required String email,
-    required String password,
-  }) async {
-    UserCredential credential = await _auth.createUserWithEmailAndPassword(
-      email: email,
-      password: password,
-    );
-
-    // Immediately create Firestore placeholder so 'isEmailRegistered' works
-    if (credential.user != null) {
-      await _firestore.collection('users').doc(credential.user!.uid).set({
-        'uid': credential.user!.uid,
-        'email': email.toLowerCase(), // Normalize email to lowercase
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-    }
-
-    return credential;
-  }
-
-  // User ki profile maloomat Firestore mein save karta hai
-  Future<void> saveUserProfile({required String name, File? imageFile}) async {
-    // Simply delegate to updateUserProfile now that it's robust (handles create/merge)
-    await updateUserProfile(name: name, imageFile: imageFile);
-  }
-
-  // DEPRECATED: Old signUp method (kept/modified if needed, but we represent it as split now)
-  // For backward compatibility if needed, or we can just remove it.
-  // Given we are refactoring, we will remove the old unified signUp to avoid confusion.
-
-  // Email aur Password ke zariye login karta hai
-  Future<void> login(String email, String password) async {
-    await _auth.signInWithEmailAndPassword(email: email, password: password);
-  }
-
-  // Firestore se login user ka saara data lata hai
-  Future<Map<String, dynamic>?> getCurrentUserData() async {
-    User? user = _auth.currentUser;
-    if (user != null) {
-      DocumentSnapshot doc = await _firestore
-          .collection('users')
-          .doc(user.uid)
-          .get();
-      return doc.data() as Map<String, dynamic>?;
-    }
-    return null;
+  // App se logout karta hai
+  Future<void> signOut() async {
+    await GoogleSignIn().signOut();
+    await _auth.signOut();
   }
 
   // Task assign karne ke liye saaray users ki list lata hai
@@ -316,12 +274,6 @@ class AuthService {
       }
       return false;
     }
-  }
-
-  // App se logout karta hai
-  Future<void> signOut() async {
-    await GoogleSignIn().signOut();
-    await _auth.signOut();
   }
 
   // Google account ke zariye login ya signup karta hai

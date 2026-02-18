@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:npc/features/auth/login_screen.dart';
 import 'package:npc/features/auth/password_screen.dart';
 import 'package:npc/core/constants/app_colors.dart';
 import 'package:npc/core/theme/text_styles.dart';
@@ -333,8 +334,39 @@ class _OtpScreenState extends State<OtpScreen> {
                         }
 
                         if (widget.isfromdelete) {
-                          // Account delete verification (agar alag se karni ho)
-                          // Abhi ke liye hum sirf signup verify kar rhe hain
+                          // API call using ViewModel
+                          bool success = await authVM.verifyDeleteAccount(
+                            widget.email,
+                            otp,
+                          );
+
+                          if (!context.mounted) return;
+
+                          if (success) {
+                            SnackbarHelper.showTopSnackBar(
+                              context,
+                              authVM.successMessage ??
+                                  "Account Deleted Successfully",
+                              isSuccess: true,
+                            );
+
+                            await Future.delayed(const Duration(seconds: 1));
+                            if (!context.mounted) return;
+
+                            // Account delete ho gaya, login screen pr wapis bhejna
+                            Navigator.of(context).pushAndRemoveUntil(
+                              MaterialPageRoute(
+                                builder: (context) => const LoginScreen(),
+                              ),
+                              (route) => false,
+                            );
+                          } else {
+                            SnackbarHelper.showTopSnackBar(
+                              context,
+                              authVM.errorMessage ?? "Deletion failed",
+                              isError: true,
+                            );
+                          }
                         } else if (widget.isfromsignup) {
                           // API call using ViewModel
                           bool success = await authVM.verifyOtp(

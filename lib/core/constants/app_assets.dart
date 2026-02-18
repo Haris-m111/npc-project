@@ -22,7 +22,6 @@ class AppAssets {
   static const String splashLogo = "assets/images/splash_logo.png";
   static const String mask = "assets/images/mask.png";
   static const String deleteIllustration = "assets/images/delete.png";
-  static const String dummyProfile = "assets/images/haris.jpeg";
   static const String onboarding1 = "assets/images/image1.png";
   static const String onboarding2 = "assets/images/image2.png";
   static const String leftLine = "assets/images/left_line.png";
