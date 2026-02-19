@@ -9,8 +9,9 @@ import 'package:npc/core/widgets/custom_dialogue.dart';
 import 'package:npc/core/constants/app_assets.dart';
 import 'package:npc/core/widgets/custom_textfields.dart';
 import 'package:npc/core/widgets/custom_loading_indicator.dart';
-import 'package:npc/core/services/auth_service.dart';
 import 'package:npc/core/utils/snackbar_helper.dart';
+import 'package:provider/provider.dart';
+import 'package:npc/view_models/auth_view_model.dart';
 
 // User ka existing password update (Change) karne wala screen
 class UpdatePassScreen extends StatefulWidget {
@@ -162,32 +163,45 @@ class _UpdatePassScreenState extends State<UpdatePassScreen> {
                           setState(() => _isLoading = true);
 
                           try {
-                            // Firebase (AuthService) ke zariye password tabdeel karna
-                            await AuthService().changePassword(
-                              oldPassword: oldPassword,
-                              newPassword: newPassword,
+                            // Backend API ke zariye password tabdeel karna
+                            final authVM = Provider.of<AuthViewModel>(
+                              context,
+                              listen: false,
+                            );
+                            bool success = await authVM.updateUserPassword(
+                              oldPassword,
+                              newPassword,
                             );
 
                             if (!context.mounted) return;
                             setState(() => _isLoading = false);
 
-                            // Kamyabi ka message dikhana
-                            showDialog(
-                              context: context,
-                              barrierDismissible: false,
-                              builder: (context) => const CustomDialogue(
-                                title: "Password Updated",
-                              ),
-                            );
+                            if (success) {
+                              // Kamyabi ka message dikhana
+                              showDialog(
+                                context: context,
+                                barrierDismissible: false,
+                                builder: (context) => const CustomDialogue(
+                                  title: "Password Updated",
+                                ),
+                              );
 
-                            Future.delayed(const Duration(seconds: 2), () {
-                              if (context.mounted) {
-                                Navigator.pop(context); // Dialog band karna
-                                Navigator.pop(
-                                  context,
-                                ); // Setting screen pe wapis jana
-                              }
-                            });
+                              Future.delayed(const Duration(seconds: 2), () {
+                                if (context.mounted) {
+                                  Navigator.pop(context); // Dialog band karna
+                                  Navigator.pop(
+                                    context,
+                                  ); // Setting screen pe wapis jana
+                                }
+                              });
+                            } else {
+                              SnackbarHelper.showTopSnackBar(
+                                context,
+                                authVM.errorMessage ??
+                                    "Failed to update password",
+                                isError: true,
+                              );
+                            }
                           } catch (e) {
                             if (mounted) {
                               setState(() => _isLoading = false);

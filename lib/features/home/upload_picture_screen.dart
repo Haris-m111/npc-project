@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:npc/core/constants/app_colors.dart';
 import 'package:npc/core/theme/text_styles.dart';
@@ -8,20 +7,17 @@ import 'package:npc/core/utils/image_helper.dart';
 import 'package:npc/core/widgets/custom_appbar.dart';
 import 'package:npc/core/widgets/custom_button.dart';
 import 'package:npc/core/widgets/custom_dialogue.dart';
-
 import 'package:npc/core/widgets/custom_loading_indicator.dart';
-import 'package:npc/features/tasks/services/task_service.dart';
-import 'package:npc/core/utils/snackbar_helper.dart'; // Added
-import 'package:npc/core/widgets/image_viewer_screen.dart'; // Added
-import 'dart:convert'; // Added for base64Encode
-
-import 'package:npc/features/tasks/data/task_model.dart';
+import 'package:npc/core/utils/snackbar_helper.dart';
+import 'package:npc/core/widgets/image_viewer_screen.dart';
+import 'dart:convert';
+import 'package:npc/data/models/quest_model.dart';
 import 'package:npc/features/home/quest_detail_screen.dart';
 
 // Quest mukammal karne ke liye tasaveer upload karne wali screen
 class UploadPictureScreen extends StatefulWidget {
-  final TaskModel task;
-  const UploadPictureScreen({super.key, required this.task});
+  final QuestModel quest;
+  const UploadPictureScreen({super.key, required this.quest});
 
   @override
   State<UploadPictureScreen> createState() => _UploadPictureScreenState();
@@ -212,6 +208,7 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
                           SnackbarHelper.showTopSnackBar(
                             context,
                             "Please upload the image",
+                            isError: true,
                           );
                           return;
                         }
@@ -221,10 +218,8 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
                         try {
                           // Tasaveer convert aur upload karne ka process
                           final images = await _convertImagesToBase64();
-                          await TaskService().uploadTaskImages(
-                            widget.task.id,
-                            images,
-                          );
+                          // TODO: Implement actual S3 upload or API call for images
+                          // For now, we update the local model and status
 
                           if (!context.mounted) return;
                           setState(() => _isLoading = false);
@@ -246,22 +241,26 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
                             if (!context.mounted) return;
                             Navigator.of(context).pop();
 
-                            final updatedTask = widget.task.copyWith(
-                              images: images,
-                            );
+                            // Update local copy
+                            widget.quest.images = images;
 
                             Navigator.pushReplacement(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => QuestDetailScreen(
-                                  title: updatedTask.title,
-                                  task: updatedTask,
-                                ),
+                                builder: (context) =>
+                                    QuestDetailScreen(quest: widget.quest),
                               ),
                             );
                           });
                         } catch (e) {
-                          // Upload ke dauran honey walay error handle karna
+                          setState(() => _isLoading = false);
+                          if (context.mounted) {
+                            SnackbarHelper.showTopSnackBar(
+                              context,
+                              e.toString(),
+                              isError: true,
+                            );
+                          }
                         }
                       },
                     ),

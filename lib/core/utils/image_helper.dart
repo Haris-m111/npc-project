@@ -16,7 +16,7 @@ class ImageHelper {
     if (source == ImageSource.gallery) {
       // Gallery se ek se zyada images select karne ke liye
       final List<XFile> pickedFiles = await _picker.pickMultiImage(
-        imageQuality: 50,
+        imageQuality: 40,
       );
       if (pickedFiles.isNotEmpty) {
         onImagesPicked(pickedFiles.map((f) => File(f.path)).toList());
@@ -25,7 +25,7 @@ class ImageHelper {
       // Camera se ek image lene ke liye
       final XFile? pickedFile = await _picker.pickImage(
         source: source,
-        imageQuality: 50,
+        imageQuality: 40,
       );
       if (pickedFile != null) {
         onImagesPicked([File(pickedFile.path)]);

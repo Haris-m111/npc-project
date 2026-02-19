@@ -184,4 +184,19 @@ class AuthRepository {
       rethrow;
     }
   }
+
+  // Password update karne wala function (Authorized)
+  Future<SignUpResponseModel> updateUserPassword(
+    Map<String, dynamic> data,
+  ) async {
+    try {
+      dynamic response = await _apiService.patchAuthorizedResponse(
+        ApiConstants.baseUrl + ApiConstants.updateUserPasswordEndpoint,
+        data,
+      );
+      return SignUpResponseModel.fromJson(response);
+    } catch (e) {
+      rethrow;
+    }
+  }
 }

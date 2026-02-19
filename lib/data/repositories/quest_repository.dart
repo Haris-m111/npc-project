@@ -136,4 +136,41 @@ class QuestRepository {
       rethrow;
     }
   }
+
+  // Quest mein team members add karne ka function
+  Future<QuestModel> addTeamMembers(
+    String questId,
+    String userId,
+    List<String> userIds,
+  ) async {
+    try {
+      final url = ApiConstants.baseUrl + ApiConstants.addTeamMembersEndpoint;
+      final data = {"questId": questId, "userId": userId, "userIds": userIds};
+
+      dynamic response = await _apiService.postAuthorizedResponse(url, data);
+
+      if (response['quest'] != null) {
+        return QuestModel.fromJson(response['quest']);
+      }
+      return QuestModel.fromJson(response);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // Quest se team member remove karne ka function
+  Future<QuestModel> removeTeamMember(String questId, String userId) async {
+    try {
+      final url =
+          "${ApiConstants.baseUrl}/quests/$questId/team-members/$userId";
+      dynamic response = await _apiService.deleteAuthorizedResponse(url);
+
+      if (response['quest'] != null) {
+        return QuestModel.fromJson(response['quest']);
+      }
+      return QuestModel.fromJson(response);
+    } catch (e) {
+      rethrow;
+    }
+  }
 }

@@ -19,9 +19,39 @@ class AuthViewModel with ChangeNotifier {
   String? _successMessage; // Success message (e.g. Signup ho gya)
   String? get successMessage => _successMessage;
 
+  String? _userId; // Logged in user ki ID store karne ke liye
+  String? get userId => _userId;
+
+  String? _socialEmail; // Social login se mili hui email
+  String? get socialEmail => _socialEmail;
+
+  String? _socialName; // Social login se mila hua naam
+  String? get socialName => _socialName;
+
+  String? _socialPicture; // Social login se mili hui picture
+  String? get socialPicture => _socialPicture;
+
   // Loading state change karne aur UI notify karne ka function
   void _setLoading(bool value) {
     _isLoading = value;
+    notifyListeners();
+  }
+
+  // User object se ID nikalne ka helper
+  void _extractAndSaveUserId(Map<String, dynamic>? userMap) {
+    if (userMap != null) {
+      _userId =
+          userMap['id']?.toString() ??
+          userMap['_id']?.toString() ??
+          userMap['userId']?.toString();
+    }
+  }
+
+  // Social data clear karne ke liye
+  void clearSocialData() {
+    _socialEmail = null;
+    _socialName = null;
+    _socialPicture = null;
     notifyListeners();
   }
 
@@ -158,12 +188,12 @@ class AuthViewModel with ChangeNotifier {
 
       // Tokens save kr rhe hain
       if (response.accessToken != null && response.refreshToken != null) {
+        debugPrint("Access Token: ${response.accessToken}");
+        _extractAndSaveUserId(response.user); // ID save kr rhy hain
         await _tokenService.saveTokens(
           response.accessToken!,
           response.refreshToken!,
         );
-        // DEBUG: Swagger ke liye token print karwa rhe hain
-        print("DEBUG_TOKEN (Copy this for Swagger): ${response.accessToken}");
       }
 
       _setLoading(false);
@@ -173,7 +203,7 @@ class AuthViewModel with ChangeNotifier {
         if (e.statusCode == 401) {
           _errorMessage = "Incorrect password";
         } else if (e.statusCode == 403) {
-          _errorMessage = "Invalid or unverified user";
+          _errorMessage = e.message;
         } else {
           _errorMessage = e.message;
         }
@@ -326,53 +356,83 @@ class AuthViewModel with ChangeNotifier {
     _successMessage = null;
 
     try {
+      debugPrint("DEBUG: Starting Google Sign In Flow...");
       final GoogleSignIn googleSignIn = GoogleSignIn();
+
+      // Pehle sign out kryn takay har bar account selection ka option aaye (As requested by user)
+      debugPrint("DEBUG: Signing out from Google to force account picker...");
+      await googleSignIn.signOut();
+
+      debugPrint("DEBUG: Calling googleSignIn.signIn()...");
       final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
 
       if (googleUser == null) {
+        debugPrint(
+          "DEBUG: Google Sign In cancelled by user (googleUser is null).",
+        );
         _setLoading(false);
-        return false; // User ne cancel kr diya
+        return false;
       }
 
+      debugPrint("DEBUG: User selected: ${googleUser.email}");
+      _socialEmail = googleUser.email;
+      _socialName = googleUser.displayName;
+      _socialPicture = googleUser.photoUrl;
+
+      debugPrint("DEBUG: Getting authentication details...");
       final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
       final String? idToken = googleAuth.idToken;
+      final String? accessToken = googleAuth.accessToken;
+
+      debugPrint(
+        "DEBUG: Google Auth success. idToken: ${idToken != null}, accessToken: ${accessToken != null}",
+      );
 
       if (idToken == null) {
-        _errorMessage = "Google ID Token not found.";
+        _errorMessage = "Google ID Token not found. Please try again.";
+        debugPrint("DEBUG: Error -> ID Token is null");
         _setLoading(false);
         return false;
       }
 
       final Map<String, dynamic> data = {
         "provider": "google",
-        "token": idToken,
+        "token": idToken, // Backend usually expects idToken for verification
         "platform": Platform.isAndroid ? "android" : "ios",
         "role": "user",
       };
 
+      debugPrint("DEBUG: Sending Social Login Request to Backend...");
+      debugPrint("DEBUG: Request Data -> $data");
+
       final response = await _authRepository.socialLogin(data);
+
+      debugPrint("DEBUG: Backend Response received.");
 
       // Tokens save kr rhe hain
       if (response.accessToken != null && response.refreshToken != null) {
+        debugPrint("DEBUG: Social Login success. Saving tokens and User ID.");
+        _extractAndSaveUserId(response.user);
         await _tokenService.saveTokens(
           response.accessToken!,
           response.refreshToken!,
         );
+        _successMessage = response.message ?? "Social login successful";
+        _setLoading(false);
+        return true;
+      } else {
+        _errorMessage = "Invalid response from server (Missing tokens)";
+        debugPrint(
+          "DEBUG: Error -> response.accessToken or refreshToken is null",
+        );
+        _setLoading(false);
+        return false;
       }
-
-      _successMessage = "Social login successful";
-      _setLoading(false);
-      return true;
     } catch (e) {
+      debugPrint("DEBUG: Google Sign In CRITICAL Error -> $e");
       if (e is ApiException) {
-        if (e.statusCode == 400) {
-          _errorMessage = "Missing or unsupported provider or token";
-        } else if (e.statusCode == 500) {
-          _errorMessage = "Social login failed due to server error";
-        } else {
-          _errorMessage = e.message;
-        }
+        _errorMessage = e.message;
       } else {
         _errorMessage = e.toString();
       }
@@ -432,6 +492,32 @@ class AuthViewModel with ChangeNotifier {
       } else {
         _errorMessage = e.toString();
       }
+      _setLoading(false);
+      return false;
+    }
+  }
+
+  // Naya Password update karne ka logic (Authorized Flow)
+  Future<bool> updateUserPassword(
+    String oldPassword,
+    String newPassword,
+  ) async {
+    _setLoading(true);
+    _errorMessage = null;
+    _successMessage = null;
+
+    final Map<String, dynamic> data = {
+      "oldPassword": oldPassword,
+      "newPassword": newPassword,
+    };
+
+    try {
+      final response = await _authRepository.updateUserPassword(data);
+      _successMessage = response.message ?? "Password updated successfully";
+      _setLoading(false);
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
       _setLoading(false);
       return false;
     }

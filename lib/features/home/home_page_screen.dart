@@ -11,8 +11,8 @@ import 'package:npc/features/home/widgets/home_header.dart';
 import 'package:npc/features/home/widgets/home_questtab.dart';
 import 'package:npc/features/home/widgets/quest_card.dart';
 import 'package:npc/features/home/widgets/completed_quest_card.dart';
+import 'package:npc/features/home/quest_detail_screen.dart';
 import 'package:npc/core/widgets/custom_loading_indicator.dart';
-import 'package:npc/core/utils/snackbar_helper.dart';
 import 'package:npc/view_models/profile_view_model.dart';
 import 'package:npc/view_models/quest_view_model.dart';
 import 'package:npc/data/models/quest_model.dart';
@@ -43,11 +43,11 @@ class _HomePageScreenState extends State<HomePageScreen> {
   void _fetchQuestsForCurrentTab() {
     final questVM = Provider.of<QuestViewModel>(context, listen: false);
     if (_currentTabIndex == 0) {
-      questVM.fetchQuests('pending');
+      questVM.fetchMyQuests('pending');
     } else if (_currentTabIndex == 1) {
-      questVM.fetchQuests('in-progress');
+      questVM.fetchMyQuests('in-progress');
     } else if (_currentTabIndex == 2) {
-      questVM.fetchQuests('submitted'); // Submitted, Approved, or Rejected
+      questVM.fetchMyQuests('submitted'); // Submitted, Approved, or Rejected
     }
   }
 
@@ -157,9 +157,11 @@ class _HomePageScreenState extends State<HomePageScreen> {
 
         return GestureDetector(
           onTap: () {
-            SnackbarHelper.showTopSnackBar(
+            Navigator.push(
               context,
-              "Quest details available soon.",
+              MaterialPageRoute(
+                builder: (context) => QuestDetailScreen(quest: quest),
+              ),
             );
           },
           child: QuestCard(quest: quest),

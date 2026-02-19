@@ -44,14 +44,14 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                         children: [
                           Icon(
                             Icons.warning_amber_rounded,
-                            color: AppColors.errorRed,
+                            color: AppColors.red,
                             size: 24.sp,
                           ),
                           SizedBox(width: 10.w),
                           Text(
                             "Delete your account will:",
                             style: AppTextStyles.body.copyWith(
-                              color: Colors.red,
+                              color: AppColors.red,
                               fontWeight: FontWeight.bold,
                               fontSize: 16.sp,
                             ),

@@ -261,7 +261,7 @@ class _PasswordScreenState extends State<PasswordScreen> {
                             Navigator.of(context).pushAndRemoveUntil(
                               MaterialPageRoute(
                                 builder: (context) =>
-                                    const CreateProfileScreen(),
+                                    CreateProfileScreen(email: widget.email),
                               ),
                               (route) => false,
                             );

@@ -105,9 +105,7 @@ class _TopSnackBarWidgetState extends State<_TopSnackBarWidget>
               margin: EdgeInsets.symmetric(horizontal: 20.w, vertical: 10.h),
               padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 12.h),
               decoration: BoxDecoration(
-                color: widget.isError
-                    ? AppColors.red
-                    : (widget.isSuccess ? AppColors.green : AppColors.primary),
+                color: widget.isError ? AppColors.red : AppColors.green,
                 borderRadius: BorderRadius.circular(10.r),
                 boxShadow: const [
                   BoxShadow(

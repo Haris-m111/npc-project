@@ -217,7 +217,7 @@ class QuestViewModel with ChangeNotifier {
     }
   }
 
-  // Quest status update karne ka function (Action logic)
+  // Quest status update karne ka function (Action logic: start, complete, submit, approve, reject)
   Future<bool> updateStatus(String questId, String action) async {
     _setLoading(true);
     _errorMessage = null;
@@ -227,7 +227,87 @@ class QuestViewModel with ChangeNotifier {
       _successMessage = "Status updated successfully: $action";
 
       // Data refresh kryn gay taake UI update ho jaye
-      // NOTE: Real app mein hum list se item remove ya move bhi kr skty hain locally
+      // Action ke mutabiq sahi lists ko refresh karna zaroori ha
+      if (action == 'start') {
+        // Pending se In-Progress mein chala gaya
+        await fetchQuests('pending');
+        await fetchQuests('in-progress');
+      } else if (action == 'complete') {
+        // In-Progress se Completed status (Submitted list mein dikhayenge review ke liye)
+        await fetchQuests('in-progress');
+        await fetchQuests('submitted');
+      } else if (action == 'submit') {
+        // Final submission
+        await fetchQuests('in-progress');
+        await fetchQuests('submitted');
+      } else if (action == 'approve' || action == 'reject') {
+        // Admin ya Reviewer ke actions
+        await fetchQuests('submitted');
+        await fetchQuests(
+          'approved',
+        ); // Agar hum approved ki alag list rakhty hain
+        await fetchQuests('rejected');
+      } else {
+        // Default: Sab refresh kryn
+        await fetchQuests('pending');
+        await fetchQuests('in-progress');
+        await fetchQuests('submitted');
+      }
+
+      _setLoading(false);
+      return true;
+    } catch (e) {
+      if (e is ApiException) {
+        _errorMessage = e.message;
+      } else {
+        _errorMessage = e.toString();
+      }
+      _setLoading(false);
+      return false;
+    }
+  }
+
+  // Quest mein team members add karne ka logic
+  Future<bool> addTeamMembers(
+    String questId,
+    String userId,
+    List<String> userIds,
+  ) async {
+    _setLoading(true);
+    _errorMessage = null;
+
+    try {
+      await _questRepo.addTeamMembers(questId, userId, userIds);
+      _successMessage = "Team members added successfully";
+
+      // List ko refresh karna (optional: agar humein current details chahiye)
+      await fetchQuestDetails(questId);
+
+      _setLoading(false);
+      return true;
+    } catch (e) {
+      if (e is ApiException) {
+        _errorMessage = e.message;
+      } else {
+        _errorMessage = e.toString();
+      }
+      _setLoading(false);
+      return false;
+    }
+  }
+
+  // Quest se team member remove karne ka logic
+  Future<bool> removeTeamMember(String questId, String userId) async {
+    _setLoading(true);
+    _errorMessage = null;
+
+    try {
+      await _questRepo.removeTeamMember(questId, userId);
+      _successMessage = "Team member removed successfully";
+
+      // Quest details ko refresh karna taake UI update ho jaye
+      await fetchQuestDetails(questId);
+
       _setLoading(false);
       return true;
     } catch (e) {

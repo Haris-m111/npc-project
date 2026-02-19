@@ -23,6 +23,15 @@ class ProfileViewModel with ChangeNotifier {
   ProfileModel? _userProfile;
   ProfileModel? get userProfile => _userProfile;
 
+  String? _fallbackUserId; // Account ID (Login response se milti hai)
+  String? get userId => _userProfile?.id ?? _fallbackUserId;
+
+  // Manual ID set karne ke liye (Naye user ke liye)
+  void setUserId(String id) {
+    _fallbackUserId = id;
+    notifyListeners();
+  }
+
   // Loading state ko set karne wala function
   void _setLoading(bool value) {
     _isLoading = value;
@@ -42,8 +51,6 @@ class ProfileViewModel with ChangeNotifier {
       if (e is ApiException) {
         if (e.statusCode == 404) {
           _errorMessage = "Profile not found";
-        } else if (e.statusCode == 500) {
-          _errorMessage = "Failed to fetch profile";
         } else {
           _errorMessage = e.message;
         }
@@ -106,8 +113,6 @@ class ProfileViewModel with ChangeNotifier {
       if (e is ApiException) {
         if (e.statusCode == 404) {
           _errorMessage = "Profile not found";
-        } else if (e.statusCode == 500) {
-          _errorMessage = "Failed to update profile";
         } else {
           _errorMessage = e.message;
         }
@@ -118,6 +123,10 @@ class ProfileViewModel with ChangeNotifier {
       return false;
     }
   }
+
+  // User ke coins store karne ke liye
+  int? _coins;
+  int? get coins => _coins;
 
   // Profile/Account delete karne ka function
   Future<bool> deleteProfile() async {
@@ -135,6 +144,58 @@ class ProfileViewModel with ChangeNotifier {
       } else {
         _errorMessage = e.toString();
       }
+      _setLoading(false);
+      return false;
+    }
+  }
+
+  // User profile update karne ka function (PATCH /user/{id})
+  Future<bool> patchUserProfile(Map<String, dynamic> data) async {
+    final currentId = userId;
+    if (currentId == null) {
+      _errorMessage = "User ID not found";
+      return false;
+    }
+
+    _setLoading(true);
+    _errorMessage = null;
+
+    try {
+      final response = await _profileRepository.patchUserProfile(
+        currentId,
+        data,
+      );
+      _userProfile = response;
+      _successMessage = response.message ?? "Profile updated successfully";
+      _setLoading(false);
+      return true;
+    } catch (e) {
+      if (e is ApiException) {
+        _errorMessage = e.message;
+      } else {
+        _errorMessage = e.toString();
+      }
+      _setLoading(false);
+      return false;
+    }
+  }
+
+  // User ke coins fetch karne ka function
+  Future<bool> fetchUserCoins() async {
+    _setLoading(true);
+    _errorMessage = null;
+
+    try {
+      final response = await _profileRepository.getUserCoins();
+      // Expecting response like {"coins": 100} or data: {"coins": 100}
+      final data = (response.containsKey('data') && response['data'] is Map)
+          ? response['data']
+          : response;
+      _coins = int.tryParse(data['coins']?.toString() ?? '0');
+      _setLoading(false);
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
       _setLoading(false);
       return false;
     }

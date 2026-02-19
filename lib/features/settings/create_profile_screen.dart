@@ -13,6 +13,7 @@ import 'package:npc/core/widgets/custom_textfields.dart';
 import 'package:npc/core/utils/snackbar_helper.dart';
 import 'package:npc/core/widgets/custom_loading_indicator.dart';
 import 'package:npc/view_models/profile_view_model.dart';
+import 'package:npc/view_models/s3_view_model.dart';
 import 'package:npc/core/services/auth_service.dart';
 import 'package:npc/features/auth/login_screen.dart';
 import 'package:provider/provider.dart';
@@ -20,7 +21,16 @@ import 'package:provider/provider.dart';
 // User ka profile banane ya update karne wala screen
 class CreateProfileScreen extends StatefulWidget {
   final bool isUpdate; // Agar profile update karni ho to 'true' hoga
-  const CreateProfileScreen({super.key, this.isUpdate = false});
+  final String? email; // Signup flow se email lane ke liye
+  final String? defaultName; // Social login se mila hua naam
+  final String? defaultPicture; // Social login se mili hui picture
+  const CreateProfileScreen({
+    super.key,
+    this.isUpdate = false,
+    this.email,
+    this.defaultName,
+    this.defaultPicture,
+  });
 
   @override
   State<CreateProfileScreen> createState() => _CreateProfileScreenState();
@@ -34,12 +44,18 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
   @override
   void initState() {
     super.initState();
-    // Agar hum update karny aaye hain, to purana data load kryn gay
-    if (widget.isUpdate) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _loadProfileData();
-      });
+    // Agar Google se naam ya picture mili hai, to initialize kr dain
+    if (widget.defaultName != null && widget.defaultName!.isNotEmpty) {
+      _nameController.text = widget.defaultName!;
     }
+    if (widget.defaultPicture != null && widget.defaultPicture!.isNotEmpty) {
+      _existingImageBase64 = widget.defaultPicture; // S3 URL ya Google URL
+    }
+    // Agar hum update karny aaye hain, to purana data load kryn gay
+    // Har haal mein profile load kryn taake user ki email mil sakay
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadProfileData();
+    });
   }
 
   Future<void> _loadProfileData() async {
@@ -278,9 +294,9 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                 ),
                 Padding(
                   padding: EdgeInsets.fromLTRB(20.w, 0, 20.w, 12.h),
-                  child: Consumer<ProfileViewModel>(
-                    builder: (context, profileVM, child) {
-                      return profileVM.isLoading
+                  child: Consumer2<ProfileViewModel, S3ViewModel>(
+                    builder: (context, profileVM, s3VM, child) {
+                      return (profileVM.isLoading || s3VM.isLoading)
                           ? const CustomLoadingIndicator()
                           : CustomButton(
                               text: widget.isUpdate
@@ -301,27 +317,56 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                                   return;
                                 }
 
-                                // Image ko handle krna (Base64 format me convert krty hain)
+                                // S3 Upload Logic (Professional Way - No Base64)
                                 String? profilePic;
                                 if (imageFile != null) {
-                                  try {
-                                    final bytes = await imageFile!
-                                        .readAsBytes();
-                                    profilePic = base64Encode(bytes);
-                                  } catch (e) {
-                                    debugPrint("Image processing error: $e");
+                                  // User ki email uthain (Required for S3 upload)
+                                  String email =
+                                      profileVM.userProfile?.email ??
+                                      widget
+                                          .email ?? // Naya: Parameter se email uthain
+                                      "user@example.com";
+
+                                  // File upload kryn
+                                  List<String>? urls = await s3VM.uploadFiles(
+                                    email: email,
+                                    filePaths: [imageFile!.path],
+                                    keyName:
+                                        'files', // Plural 'files' key use kryn
+                                    scope:
+                                        'profile', // Scope explicitly profile set kryn
+                                  );
+
+                                  if (urls != null && urls.isNotEmpty) {
+                                    profilePic = urls.first; // S3 URL mil gayi
+                                  } else {
+                                    if (context.mounted) {
+                                      SnackbarHelper.showTopSnackBar(
+                                        context,
+                                        s3VM.errorMessage ??
+                                            "Failed to upload image",
+                                        isError: true,
+                                      );
+                                    }
+                                    return;
                                   }
                                 } else if (_existingImageBase64 != null) {
-                                  // Agar nayi image nahi li to puraani wali use kro
                                   profilePic = _existingImageBase64;
                                 }
 
                                 bool success;
-                                if (widget.isUpdate) {
-                                  success = await profileVM.updateProfile(
-                                    name,
-                                    profilePic,
-                                  );
+                                // Agar getProfile fail ho k 'Profile not found' keh raha tha,
+                                // to naye user ke tor pr 'Create' hit kryn gay (POST)
+                                // Chahe wo button 'Update Profile' kyon na ho
+                                bool profileExists =
+                                    profileVM.userProfile?.name != null &&
+                                    profileVM.userProfile!.name!.isNotEmpty;
+
+                                if (widget.isUpdate && profileExists) {
+                                  success = await profileVM.patchUserProfile({
+                                    "name": name,
+                                    "profilePicture": profilePic,
+                                  });
                                 } else {
                                   success = await profileVM.createProfile(
                                     name,

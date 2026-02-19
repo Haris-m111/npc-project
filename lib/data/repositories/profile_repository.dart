@@ -44,6 +44,34 @@ class ProfileRepository {
     }
   }
 
+  // User profile update karne ke liye (PATCH request - /user/{id})
+  Future<ProfileModel> patchUserProfile(
+    String id,
+    Map<String, dynamic> data,
+  ) async {
+    try {
+      dynamic response = await _apiService.patchAuthorizedResponse(
+        "${ApiConstants.baseUrl}${ApiConstants.updateUserProfileEndpoint}/$id",
+        data,
+      );
+      return ProfileModel.fromJson(response);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // User ke coins mangwane ke liye (GET request - /user/coins)
+  Future<Map<String, dynamic>> getUserCoins() async {
+    try {
+      dynamic response = await _apiService.getAuthorizedResponse(
+        ApiConstants.baseUrl + ApiConstants.userCoinsEndpoint,
+      );
+      return response as Map<String, dynamic>;
+    } catch (e) {
+      rethrow;
+    }
+  }
+
   // Profile khatam/delete karne ke liye (DELETE request)
   Future<dynamic> deleteProfile() async {
     try {

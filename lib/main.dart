@@ -7,6 +7,9 @@ import 'package:provider/provider.dart';
 import 'package:npc/view_models/auth_view_model.dart';
 import 'package:npc/view_models/profile_view_model.dart';
 import 'package:npc/view_models/quest_view_model.dart';
+import 'package:npc/view_models/s3_view_model.dart';
+import 'package:npc/view_models/privacy_policy_view_model.dart';
+import 'package:npc/view_models/about_app_view_model.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,6 +20,9 @@ void main() async {
         ChangeNotifierProvider(create: (_) => AuthViewModel()),
         ChangeNotifierProvider(create: (_) => ProfileViewModel()),
         ChangeNotifierProvider(create: (_) => QuestViewModel()),
+        ChangeNotifierProvider(create: (_) => S3ViewModel()),
+        ChangeNotifierProvider(create: (_) => PrivacyPolicyViewModel()),
+        ChangeNotifierProvider(create: (_) => AboutAppViewModel()),
       ],
       child: const MyApp(),
     ),

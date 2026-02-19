@@ -54,7 +54,15 @@ class QuestModel {
       images = List<String>.from(json['images']);
     }
     if (json['teamMembers'] is List) {
-      teamMembers = List<String>.from(json['teamMembers']);
+      teamMembers = (json['teamMembers'] as List)
+          .map((item) {
+            if (item is Map) {
+              return item['_id']?.toString() ?? item['id']?.toString() ?? '';
+            }
+            return item.toString();
+          })
+          .where((element) => element.isNotEmpty)
+          .toList();
     }
   }
 

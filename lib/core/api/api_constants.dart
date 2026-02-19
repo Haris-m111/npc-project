@@ -57,5 +57,15 @@ class ApiConstants {
   static const String updateQuestStatusEndpoint =
       '/quests'; // /quests/{id}/{action} ke liye base
   static const String userCoinsEndpoint = '/user/coins';
+  static const String updateUserPasswordEndpoint = '/user/update-password';
+  static const String updateUserProfileEndpoint = '/user'; // Use with /{id}
   static const String teamQuestsByUserIdEndpoint = '/quests/user';
+  static const String addTeamMembersEndpoint = '/quests/team-members';
+
+  // S3 Endpoints
+  static const String uploadS3Endpoint = '/s3/upload';
+  static const String listS3Endpoint = '/s3/list';
+  static const String deleteS3Endpoint = '/s3/file'; // Use with /{key}
+  static const String privacyPolicyEndpoint = '/privacy-policy';
+  static const String aboutAppEndpoint = '/about-app';
 }

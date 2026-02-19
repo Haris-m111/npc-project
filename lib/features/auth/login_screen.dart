@@ -152,12 +152,24 @@ class _LoginScreenState extends State<LoginScreen> {
                                 context,
                                 listen: false,
                               );
+
+                              // Naya: Login se mili hui ID ProfileVM ko dena
+                              if (authVM.userId != null) {
+                                profileVM.setUserId(authVM.userId!);
+                              }
+
                               bool profileSuccess = await profileVM
                                   .getProfile();
 
                               if (!context.mounted) return;
 
-                              if (!profileSuccess) {
+                              // 404 means user exists but hasn't created a profile yet.
+                              // This is NOT a fatal error for login.
+                              bool isNewUser =
+                                  !profileSuccess &&
+                                  profileVM.errorMessage == "Profile not found";
+
+                              if (!profileSuccess && !isNewUser) {
                                 SnackbarHelper.showTopSnackBar(
                                   context,
                                   profileVM.errorMessage ??
@@ -167,25 +179,28 @@ class _LoginScreenState extends State<LoginScreen> {
                                 return;
                               }
 
-                              SnackbarHelper.showTopSnackBar(
-                                context,
-                                authVM.successMessage ?? "Login Successful!",
-                                isSuccess: true,
-                              );
+                              if (profileSuccess) {
+                                SnackbarHelper.showTopSnackBar(
+                                  context,
+                                  authVM.successMessage ?? "Login Successful!",
+                                  isSuccess: true,
+                                );
+                              }
 
                               // Delay for snackbar
                               await Future.delayed(const Duration(seconds: 1));
                               if (!context.mounted) return;
 
-                              // Agar profile ka 'name' khali hai, to Create Profile pr bhejo
-                              if (profileVM.userProfile?.name == null ||
+                              // Agar profile nahi mili (New User) ya 'name' khali hai, to Create Profile pr bhejo
+                              if (isNewUser ||
+                                  profileVM.userProfile?.name == null ||
                                   profileVM.userProfile!.name!.isEmpty) {
                                 Navigator.of(context).pushAndRemoveUntil(
                                   MaterialPageRoute(
-                                    builder: (context) =>
-                                        const CreateProfileScreen(
-                                          isUpdate: false,
-                                        ),
+                                    builder: (context) => CreateProfileScreen(
+                                      isUpdate: false,
+                                      email: email, // Email pass krdi
+                                    ),
                                   ),
                                   (route) => false,
                                 );
@@ -298,11 +313,22 @@ class _LoginScreenState extends State<LoginScreen> {
                             context,
                             listen: false,
                           );
+
+                          // Naya: Login se mili hui ID ProfileVM ko dena
+                          if (authVM.userId != null) {
+                            profileVM.setUserId(authVM.userId!);
+                          }
+
                           bool profileSuccess = await profileVM.getProfile();
 
                           if (!context.mounted) return;
 
-                          if (!profileSuccess) {
+                          // 404 handle kr rhy hain naye users ke liye
+                          bool isNewUser =
+                              !profileSuccess &&
+                              profileVM.errorMessage == "Profile not found";
+
+                          if (!profileSuccess && !isNewUser) {
                             SnackbarHelper.showTopSnackBar(
                               context,
                               profileVM.errorMessage ??
@@ -312,19 +338,30 @@ class _LoginScreenState extends State<LoginScreen> {
                             return;
                           }
 
-                          SnackbarHelper.showTopSnackBar(
-                            context,
-                            authVM.successMessage ?? "Social Login Successful!",
-                            isSuccess: true,
-                          );
+                          if (profileSuccess) {
+                            SnackbarHelper.showTopSnackBar(
+                              context,
+                              authVM.successMessage ??
+                                  "Social Login Successful!",
+                              isSuccess: true,
+                            );
+                          }
 
                           // Profile complete check
-                          if (profileVM.userProfile?.name == null ||
+                          if (isNewUser ||
+                              profileVM.userProfile?.name == null ||
                               profileVM.userProfile!.name!.isEmpty) {
                             Navigator.of(context).pushAndRemoveUntil(
                               MaterialPageRoute(
-                                builder: (context) =>
-                                    const CreateProfileScreen(isUpdate: false),
+                                builder: (context) => CreateProfileScreen(
+                                  isUpdate: false,
+                                  email:
+                                      profileVM.userProfile?.email ??
+                                      authVM.socialEmail ??
+                                      "", // Social email as fallback
+                                  defaultName: authVM.socialName,
+                                  defaultPicture: authVM.socialPicture,
+                                ),
                               ),
                               (route) => false,
                             );

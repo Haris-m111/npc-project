@@ -45,6 +45,7 @@ dependencies:
   email_otp: ^3.0.2
   shared_preferences: ^2.5.4
   google_sign_in: ^6.2.1
+  flutter_widget_from_html: ^0.15.1
 
 
 dev_dependencies:
