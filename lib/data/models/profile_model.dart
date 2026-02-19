@@ -72,10 +72,13 @@ class ProfileModel {
     ];
 
     // 1. Pehle current root level pr check kryn gay
+    // Prioritize 'userId' or '_id' as they are often the primary account identifiers
     id =
-        root['id']?.toString() ??
-        root['_id']?.toString() ??
         root['userId']?.toString() ??
+        root['_id']?.toString() ??
+        root['id']?.toString() ??
+        json['userId']?.toString() ??
+        json['_id']?.toString() ??
         json['id']?.toString();
     debugPrint("DEBUG: Parsed Profile ID -> $id");
     email = root['email'] ?? json['email'];

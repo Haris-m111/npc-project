@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:npc/core/constants/app_assets.dart';
 import 'package:npc/core/constants/app_colors.dart';
 import 'package:npc/features/auth/otp_screen.dart';
 import 'package:npc/core/theme/text_styles.dart';
 import 'package:npc/core/widgets/custom_appbar.dart';
 import 'package:npc/core/widgets/custom_button.dart';
+import 'package:npc/core/widgets/custom_textfields.dart';
 import 'package:npc/core/utils/snackbar_helper.dart';
 import 'package:npc/view_models/profile_view_model.dart';
 import 'package:provider/provider.dart';
@@ -19,6 +21,14 @@ class DeleteAccountScreen extends StatefulWidget {
 }
 
 class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
+  final TextEditingController _passwordController = TextEditingController();
+
+  @override
+  void dispose() {
+    _passwordController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -74,10 +84,15 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                         style: AppTextStyles.bodysmall.copyWith(height: 1.5),
                         textAlign: TextAlign.justify,
                       ),
+                      SizedBox(height: 25.h),
+                      CustomTextfields(
+                        hintText: "Enter your password",
+                        isPassword: true,
+                        prefixIconPath: AppAssets.lockIcon,
+                        controller: _passwordController,
+                      ),
 
-                      SizedBox(height: 16.h),
-
-                      SizedBox(height: 16.h),
+                      SizedBox(height: 20.h),
 
                       // Paragraph 3 (Warning)
                       Text(
@@ -103,25 +118,50 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                       onPressed: () async {
                         FocusScope.of(context).unfocus();
 
-                        // User ka email nikalna (ProfileViewModel se le saktay hain ya manual input)
-                        // Is screen me hum email get karain gay ProfileViewModel se
-                        final profileVM = Provider.of<ProfileViewModel>(
-                          context,
-                          listen: false,
-                        );
-                        String? email = profileVM.userProfile?.email;
-
-                        if (email == null || email.isEmpty) {
+                        String password = _passwordController.text.trim();
+                        if (password.isEmpty) {
                           SnackbarHelper.showTopSnackBar(
                             context,
-                            "User email not found. Please try again.",
+                            "Please enter your password",
                             isError: true,
                           );
                           return;
                         }
 
-                        // API call: OTP mangnay ke liye
-                        bool success = await authVM.deleteAccount(email);
+                        // 1. Pehle AuthViewModel se email nikalne ki koshish karain gay (Source of truth for login)
+                        String? email = authVM.userEmail;
+
+                        // 2. Fallback: Agar AuthVM me nahi hai to ProfileViewModel se check karain gay
+                        if (email == null || email.isEmpty) {
+                          final profileVM = Provider.of<ProfileViewModel>(
+                            context,
+                            listen: false,
+                          );
+                          email = profileVM.userProfile?.email;
+                        }
+
+                        // 3. Fallback: Agar dono me nahi hai to social email check karain gay
+                        if (email == null || email.isEmpty) {
+                          email = authVM.socialEmail;
+                        }
+
+                        if (email == null || email.isEmpty) {
+                          SnackbarHelper.showTopSnackBar(
+                            context,
+                            "User email not found. Please logout and login again.",
+                            isError: true,
+                          );
+                          return;
+                        }
+
+                        // shadowing with non-nullable String taake niche '!' bar bar na lagana paray
+                        final String finalEmail = email;
+
+                        // API call: OTP mangnay ke liye (Email + Password Verification)
+                        bool success = await authVM.deleteAccount(
+                          finalEmail,
+                          password,
+                        );
 
                         if (!context.mounted) return;
 
@@ -139,8 +179,10 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) =>
-                                  OtpScreen(isfromdelete: true, email: email),
+                              builder: (context) => OtpScreen(
+                                isfromdelete: true,
+                                email: finalEmail,
+                              ),
                             ),
                           );
                         } else {

@@ -24,12 +24,28 @@ class ProfileViewModel with ChangeNotifier {
   ProfileModel? get userProfile => _userProfile;
 
   String? _fallbackUserId; // Account ID (Login response se milti hai)
-  String? get userId => _userProfile?.id ?? _fallbackUserId;
+  String? get userId {
+    // Priority: Login session se mili hui ID (yaad rakhi hui) > Profile se mili hui ID
+    final id = _fallbackUserId ?? _userProfile?.id;
+    debugPrint("DEBUG: ProfileViewModel.userId getter -> $id");
+    return id;
+  }
 
-  // Manual ID set karne ke liye (Naye user ke liye)
-  void setUserId(String id) {
-    _fallbackUserId = id;
-    notifyListeners();
+  // Manual ID set karne ke liye (Naye user ke liye ya Auth se sync krne k liye)
+  void setUserId(String? id) {
+    if (id != null && id != _fallbackUserId) {
+      debugPrint("DEBUG: Setting ProfileViewModel fallbackUserId -> $id");
+      _fallbackUserId = id;
+      notifyListeners();
+    }
+  }
+
+  // AuthViewModel se ID sync karne ke liye (ProxyProvider ke liye useful hai)
+  void syncUserId(String? id) {
+    if (id != null && _fallbackUserId != id) {
+      _fallbackUserId = id;
+      // notifyListeners mat karain yahan agar build ke darmiyan call ho raha ho
+    }
   }
 
   // Loading state ko set karne wala function
@@ -74,6 +90,7 @@ class ProfileViewModel with ChangeNotifier {
           : null,
     };
 
+    debugPrint("DEBUG: ProfileViewModel.createProfile sending data -> $data");
     try {
       final response = await _profileRepository.createProfile(data);
       _userProfile = response; // Naya data yahan store kr rhy hain
@@ -103,6 +120,7 @@ class ProfileViewModel with ChangeNotifier {
           : null,
     };
 
+    debugPrint("DEBUG: ProfileViewModel.updateProfile sending data -> $data");
     try {
       final response = await _profileRepository.updateProfile(data);
       _userProfile = response; // Updated data yahan store kr rhy hain

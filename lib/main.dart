@@ -18,7 +18,13 @@ void main() async {
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthViewModel()),
-        ChangeNotifierProvider(create: (_) => ProfileViewModel()),
+        ChangeNotifierProxyProvider<AuthViewModel, ProfileViewModel>(
+          create: (_) => ProfileViewModel(),
+          update: (context, authVM, profileVM) {
+            profileVM?.syncUserId(authVM.userId);
+            return profileVM!;
+          },
+        ),
         ChangeNotifierProvider(create: (_) => QuestViewModel()),
         ChangeNotifierProvider(create: (_) => S3ViewModel()),
         ChangeNotifierProvider(create: (_) => PrivacyPolicyViewModel()),

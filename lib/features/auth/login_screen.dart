@@ -347,32 +347,50 @@ class _LoginScreenState extends State<LoginScreen> {
                             );
                           }
 
-                          // Profile complete check
-                          if (isNewUser ||
+                          // Profile complete check (Name or Picture missing?)
+                          bool needsSetup =
+                              isNewUser ||
                               profileVM.userProfile?.name == null ||
-                              profileVM.userProfile!.name!.isEmpty) {
-                            Navigator.of(context).pushAndRemoveUntil(
-                              MaterialPageRoute(
-                                builder: (context) => CreateProfileScreen(
-                                  isUpdate: false,
-                                  email:
-                                      profileVM.userProfile?.email ??
-                                      authVM.socialEmail ??
-                                      "", // Social email as fallback
-                                  defaultName: authVM.socialName,
-                                  defaultPicture: authVM.socialPicture,
-                                ),
-                              ),
-                              (route) => false,
+                              profileVM.userProfile!.name!.isEmpty ||
+                              profileVM.userProfile?.profilePicture == null ||
+                              profileVM.userProfile!.profilePicture!.isEmpty;
+
+                          if (needsSetup) {
+                            // Social login ke liye automatic profile create/update kryn gay
+                            debugPrint(
+                              "DEBUG: Automating profile setup for Google user (isNew: $isNewUser)...",
                             );
-                          } else {
-                            Navigator.of(context).pushAndRemoveUntil(
-                              MaterialPageRoute(
-                                builder: (context) => const HomePageScreen(),
-                              ),
-                              (route) => false,
-                            );
+                            if (isNewUser) {
+                              await profileVM.createProfile(
+                                authVM.socialName ?? "Google User",
+                                authVM.socialPicture,
+                              );
+                            } else {
+                              // Agar profile bani hui hai par picture ya naam missing hai
+                              await profileVM.updateProfile(
+                                profileVM.userProfile?.name ??
+                                    authVM.socialName ??
+                                    "Google User",
+                                profileVM.userProfile?.profilePicture ??
+                                    authVM.socialPicture,
+                              );
+                            }
                           }
+
+                          // Success snackbar for social login
+                          SnackbarHelper.showTopSnackBar(
+                            context,
+                            authVM.successMessage ?? "Social Login Successful!",
+                            isSuccess: true,
+                          );
+
+                          // Hamesha Home page par bheje ga (Social login ke liye)
+                          Navigator.of(context).pushAndRemoveUntil(
+                            MaterialPageRoute(
+                              builder: (context) => const HomePageScreen(),
+                            ),
+                            (route) => false,
+                          );
                         } else if (authVM.errorMessage != null) {
                           SnackbarHelper.showTopSnackBar(
                             context,

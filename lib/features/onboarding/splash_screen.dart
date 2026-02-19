@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:npc/view_models/auth_view_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:npc/core/constants/app_assets.dart';
@@ -30,6 +31,10 @@ class _SplashScreenState extends State<SplashScreen> {
     // 2 seconds ka intezar (Splash effect ke liye)
     await Future.delayed(const Duration(seconds: 2));
     if (!mounted) return;
+
+    // Session restore kryn (AuthViewModel se ID mangwaen)
+    final authVM = Provider.of<AuthViewModel>(context, listen: false);
+    await authVM.restoreSession();
 
     final prefs = await SharedPreferences.getInstance();
     final bool hasSeenOnboarding = prefs.getBool('hasSeenOnboarding') ?? false;

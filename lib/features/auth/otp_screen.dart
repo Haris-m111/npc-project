@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:npc/features/auth/login_screen.dart';
 import 'package:npc/features/auth/password_screen.dart';
+import 'package:npc/features/settings/delete_splash_screen.dart';
 import 'package:npc/core/constants/app_colors.dart';
 import 'package:npc/core/theme/text_styles.dart';
 import 'package:npc/core/widgets/custom_appbar.dart';
@@ -260,6 +260,13 @@ class _OtpScreenState extends State<OtpScreen> {
                                     success = await authVM.forgotPassword(
                                       widget.email,
                                     );
+                                  } else if (widget.isfromdelete) {
+                                    // Account delete ke liye wahi main delete account API hi resend ka kaam karegi
+                                    // Iske liye humne ViewModel me password temporary save kiya tha
+                                    success = await authVM.deleteAccount(
+                                      widget.email,
+                                      authVM.pendingDeletionPassword ?? "",
+                                    );
                                   } else {
                                     // Signup flow ke liye purana resend logic
                                     success = await authVM.resendOtp(
@@ -350,13 +357,13 @@ class _OtpScreenState extends State<OtpScreen> {
                               isSuccess: true,
                             );
 
-                            await Future.delayed(const Duration(seconds: 1));
                             if (!context.mounted) return;
 
-                            // Account delete ho gaya, login screen pr wapis bhejna
+                            // Account delete ho gaya, success splash screen par bhejna
                             Navigator.of(context).pushAndRemoveUntil(
                               MaterialPageRoute(
-                                builder: (context) => const LoginScreen(),
+                                builder: (context) =>
+                                    const DeleteSplashScreen(),
                               ),
                               (route) => false,
                             );
@@ -379,7 +386,7 @@ class _OtpScreenState extends State<OtpScreen> {
                           if (success) {
                             SnackbarHelper.showTopSnackBar(
                               context,
-                              authVM.successMessage ?? "OTP Verified!",
+                              authVM.successMessage ?? "OTP Successful",
                               isSuccess: true,
                             );
 
@@ -422,7 +429,7 @@ class _OtpScreenState extends State<OtpScreen> {
                           if (success) {
                             SnackbarHelper.showTopSnackBar(
                               context,
-                              authVM.successMessage ?? "OTP Verified!",
+                              authVM.successMessage ?? "OTP Successful",
                               isSuccess: true,
                             );
                             await Future.delayed(const Duration(seconds: 1));

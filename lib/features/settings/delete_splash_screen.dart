@@ -53,7 +53,7 @@ class _DeleteSplashScreenState extends State<DeleteSplashScreen> {
             ),
             SizedBox(height: 10.h),
             Text(
-              'Lorem ipsum dolor sit amet, consectetur \nadipiscing elit. Fusce ac eleifend purus. ',
+              'Your account and all associated data have been permanently removed. We hope to see you again soon!',
               textAlign: TextAlign.center,
               style: AppTextStyles.bodysmall.copyWith(
                 fontSize: 15,

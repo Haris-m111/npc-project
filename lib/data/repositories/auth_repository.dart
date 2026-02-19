@@ -155,10 +155,13 @@ class AuthRepository {
   }
 
   // Account delete karne ke liye OTP mangwana
-  Future<Map<String, dynamic>> deleteAccount(String email) async {
+  Future<Map<String, dynamic>> deleteAccount(
+    String email,
+    String password,
+  ) async {
     try {
-      final Map<String, dynamic> data = {"email": email};
-      dynamic response = await _apiService.postResponse(
+      final Map<String, dynamic> data = {"email": email, "password": password};
+      dynamic response = await _apiService.postAuthorizedResponse(
         ApiConstants.baseUrl + ApiConstants.deleteAccountEndpoint,
         data,
       );
@@ -175,7 +178,7 @@ class AuthRepository {
   ) async {
     try {
       final Map<String, dynamic> data = {"email": email, "otp": otp};
-      dynamic response = await _apiService.postResponse(
+      dynamic response = await _apiService.postAuthorizedResponse(
         ApiConstants.baseUrl + ApiConstants.verifyDeleteAccountEndpoint,
         data,
       );

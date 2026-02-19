@@ -11,7 +11,6 @@ import 'package:npc/core/widgets/custom_textfields.dart';
 import 'package:npc/core/utils/snackbar_helper.dart';
 import 'package:npc/core/utils/validators.dart';
 import 'package:npc/features/home/home_page_screen.dart';
-import 'package:npc/features/settings/create_profile_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:npc/view_models/auth_view_model.dart';
 import 'package:npc/view_models/profile_view_model.dart';
@@ -235,7 +234,12 @@ class _SignupState extends State<Signup> {
 
                           if (!context.mounted) return;
 
-                          if (!profileSuccess) {
+                          // 404 handle kr rhy hain naye users ke liye
+                          bool isNewUser =
+                              !profileSuccess &&
+                              profileVM.errorMessage == "Profile not found";
+
+                          if (!profileSuccess && !isNewUser) {
                             SnackbarHelper.showTopSnackBar(
                               context,
                               profileVM.errorMessage ??
@@ -245,30 +249,49 @@ class _SignupState extends State<Signup> {
                             return;
                           }
 
+                          // Profile complete check (Name or Picture missing?)
+                          bool needsSetup =
+                              isNewUser ||
+                              profileVM.userProfile?.name == null ||
+                              profileVM.userProfile!.name!.isEmpty ||
+                              profileVM.userProfile?.profilePicture == null ||
+                              profileVM.userProfile!.profilePicture!.isEmpty;
+
+                          if (needsSetup) {
+                            // Social login ke liye automatic profile create/update kryn gay
+                            debugPrint(
+                              "DEBUG: Automating profile setup for Google user (isNew: $isNewUser)...",
+                            );
+                            if (isNewUser) {
+                              await profileVM.createProfile(
+                                authVM.socialName ?? "Google User",
+                                authVM.socialPicture,
+                              );
+                            } else {
+                              // Agar profile bani hui hai par picture ya naam missing hai
+                              await profileVM.updateProfile(
+                                profileVM.userProfile?.name ??
+                                    authVM.socialName ??
+                                    "Google User",
+                                profileVM.userProfile?.profilePicture ??
+                                    authVM.socialPicture,
+                              );
+                            }
+                          }
+
                           SnackbarHelper.showTopSnackBar(
                             context,
                             authVM.successMessage ?? "Social Login Successful!",
                             isSuccess: true,
                           );
 
-                          // Profile complete check
-                          if (profileVM.userProfile?.name == null ||
-                              profileVM.userProfile!.name!.isEmpty) {
-                            Navigator.of(context).pushAndRemoveUntil(
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    const CreateProfileScreen(isUpdate: false),
-                              ),
-                              (route) => false,
-                            );
-                          } else {
-                            Navigator.of(context).pushAndRemoveUntil(
-                              MaterialPageRoute(
-                                builder: (context) => const HomePageScreen(),
-                              ),
-                              (route) => false,
-                            );
-                          }
+                          // Hamesha Home page par bheje ga (Social login ke liye)
+                          Navigator.of(context).pushAndRemoveUntil(
+                            MaterialPageRoute(
+                              builder: (context) => const HomePageScreen(),
+                            ),
+                            (route) => false,
+                          );
                         } else if (authVM.errorMessage != null) {
                           SnackbarHelper.showTopSnackBar(
                             context,

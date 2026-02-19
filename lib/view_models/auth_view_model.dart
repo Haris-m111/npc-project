@@ -22,6 +22,13 @@ class AuthViewModel with ChangeNotifier {
   String? _userId; // Logged in user ki ID store karne ke liye
   String? get userId => _userId;
 
+  String? _userEmail; // Logged in user ki email store karne ke liye
+  String? get userEmail => _userEmail;
+
+  String?
+  _pendingDeletionPassword; // Account delete karne ke liye temporary password save kar rhy hain
+  String? get pendingDeletionPassword => _pendingDeletionPassword;
+
   String? _socialEmail; // Social login se mili hui email
   String? get socialEmail => _socialEmail;
 
@@ -44,6 +51,10 @@ class AuthViewModel with ChangeNotifier {
           userMap['id']?.toString() ??
           userMap['_id']?.toString() ??
           userMap['userId']?.toString();
+      _userEmail = userMap['email']?.toString(); // Email bhi save kar rhy hain
+      debugPrint(
+        "DEBUG: Extracted User Data -> ID: $_userId, Email: $_userEmail",
+      );
     }
   }
 
@@ -69,8 +80,9 @@ class AuthViewModel with ChangeNotifier {
 
     try {
       // Repository call
-      final response = await _authRepository.signUp(data);
-      _successMessage = response.message; // Success response save kar rhe hain
+      await _authRepository.signUp(data);
+      _successMessage =
+          "OTP sent to email"; // User requirement: "OTP sent to email"
       _setLoading(false);
       return true;
     } catch (e) {
@@ -91,7 +103,7 @@ class AuthViewModel with ChangeNotifier {
     try {
       final response = await _authRepository.verifyOtp(data);
       // Verify OTP Signup success: Status 200
-      _successMessage = "Signup verified successfully";
+      _successMessage = "OTP Successful"; // User requirement: "OTP Successful"
 
       // Agar API tokens deti hai (Signup flow), to save kryn
       if (response.accessToken != null && response.refreshToken != null) {
@@ -105,7 +117,7 @@ class AuthViewModel with ChangeNotifier {
       return true;
     } catch (e) {
       if (e is ApiException && e.statusCode == 400) {
-        _errorMessage = "Invalid or expired OTP or already verified";
+        _errorMessage = "Invalid OTP"; // User requirement: "Invalid OTP"
       } else {
         _errorMessage = e.toString();
       }
@@ -154,9 +166,11 @@ class AuthViewModel with ChangeNotifier {
 
       // Password creation ke baad aksar tokens milte hain taake user login ho jaye
       if (response.accessToken != null && response.refreshToken != null) {
+        _extractAndSaveUserId(response.user); // ID aur Email save kr rhy hain
         await _tokenService.saveTokens(
           response.accessToken!,
           response.refreshToken!,
+          userId, // Persistent storage me bhi save kr rhy hain
         );
       }
 
@@ -189,10 +203,11 @@ class AuthViewModel with ChangeNotifier {
       // Tokens save kr rhe hain
       if (response.accessToken != null && response.refreshToken != null) {
         debugPrint("Access Token: ${response.accessToken}");
-        _extractAndSaveUserId(response.user); // ID save kr rhy hain
+        _extractAndSaveUserId(response.user); // ID aur Email save kr rhy hain
         await _tokenService.saveTokens(
           response.accessToken!,
           response.refreshToken!,
+          _userId, // Local storage me persistent save kr rhy hain
         );
       }
 
@@ -246,13 +261,13 @@ class AuthViewModel with ChangeNotifier {
 
     try {
       await _authRepository.verifyOtpForgotPassword(data);
-      // Verify OTP Forgot success: Status 200
-      _successMessage = "OTP verified";
+      // Verify OTP Forgot Password success: Status 200
+      _successMessage = "OTP Successful"; // User requirement: "OTP Successful"
       _setLoading(false);
       return true;
     } catch (e) {
       if (e is ApiException && e.statusCode == 400) {
-        _errorMessage = "Invalid or expired OTP";
+        _errorMessage = "Invalid OTP"; // User requirement: "Invalid OTP"
       } else {
         _errorMessage = e.toString();
       }
@@ -334,7 +349,10 @@ class AuthViewModel with ChangeNotifier {
       }
 
       // Tokens locally clear kr rhe hain
-      await _tokenService.clearTokens();
+      await _tokenService.clearAll();
+      _userId = null;
+      _userEmail = null;
+      _pendingDeletionPassword = null;
       _successMessage = "Logged out successfully";
 
       _setLoading(false);
@@ -342,10 +360,20 @@ class AuthViewModel with ChangeNotifier {
     } catch (e) {
       // Agar logout fail bhi ho jaye (e.g. token expire),
       // phir bhi hum locally logout kr dain gay
-      await _tokenService.clearTokens();
+      await _tokenService.clearAll();
       _errorMessage = e.toString();
       _setLoading(false);
       return false;
+    }
+  }
+
+  // App start hotay waqt purani session/ID recover karne ke liye
+  Future<void> restoreSession() async {
+    final savedId = await _tokenService.getUserId();
+    if (savedId != null) {
+      _userId = savedId;
+      debugPrint("DEBUG: Session Restored. User ID: $_userId");
+      notifyListeners();
     }
   }
 
@@ -417,6 +445,7 @@ class AuthViewModel with ChangeNotifier {
         await _tokenService.saveTokens(
           response.accessToken!,
           response.refreshToken!,
+          _userId, // Persistent save
         );
         _successMessage = response.message ?? "Social login successful";
         _setLoading(false);
@@ -442,13 +471,16 @@ class AuthViewModel with ChangeNotifier {
   }
 
   // Account delete karne ke liye OTP mangwane ka logic
-  Future<bool> deleteAccount(String email) async {
+  // Account delete karne ke liye OTP mangwana ke liye (Email + Password Verification)
+  Future<bool> deleteAccount(String email, String password) async {
     _setLoading(true);
     _errorMessage = null;
     _successMessage = null;
 
     try {
-      await _authRepository.deleteAccount(email);
+      await _authRepository.deleteAccount(email, password);
+      _pendingDeletionPassword =
+          password; // Resend ke liye password save kr rhy hain
       _successMessage = "OTP sent for account deletion";
       _setLoading(false);
       return true;
@@ -477,7 +509,7 @@ class AuthViewModel with ChangeNotifier {
       await _authRepository.verifyDeleteAccount(email, otp);
 
       // Account delete ho gaya, tokens clear kr dain gay
-      await _tokenService.clearTokens();
+      await _tokenService.clearAll();
 
       _successMessage = "Account deleted";
       _setLoading(false);

@@ -362,12 +362,23 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                                     profileVM.userProfile?.name != null &&
                                     profileVM.userProfile!.name!.isNotEmpty;
 
+                                final currentUserId = profileVM.userId;
+                                debugPrint(
+                                  "DEBUG: Profile exists: $profileExists, ID: $currentUserId",
+                                );
+
                                 if (widget.isUpdate && profileExists) {
-                                  success = await profileVM.patchUserProfile({
-                                    "name": name,
-                                    "profilePicture": profilePic,
-                                  });
+                                  debugPrint(
+                                    "DEBUG: Performing PUT /profile/update",
+                                  );
+                                  success = await profileVM.updateProfile(
+                                    name,
+                                    profilePic,
+                                  );
                                 } else {
+                                  debugPrint(
+                                    "DEBUG: Performing POST /profile/create",
+                                  );
                                   success = await profileVM.createProfile(
                                     name,
                                     profilePic,
