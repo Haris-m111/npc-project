@@ -10,10 +10,8 @@ import 'package:npc/core/widgets/custom_appbar.dart';
 import 'package:npc/core/constants/app_assets.dart';
 import 'package:npc/core/widgets/custom_setting_button.dart';
 import 'package:npc/core/widgets/confirmation_dialog.dart';
-import 'package:npc/features/tasks/create_task_screen.dart';
-import 'package:npc/features/settings/task_approval_screen.dart';
-import 'package:npc/core/services/auth_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:npc/core/utils/snackbar_helper.dart';
 import 'package:npc/core/widgets/custom_loading_indicator.dart';
 import 'package:provider/provider.dart';
 import 'package:npc/view_models/auth_view_model.dart';
@@ -38,11 +36,12 @@ class _SettingScreenState extends State<SettingScreen> {
 
   // Mobile storage (SharedPreferences) se notification ki setting nikalna
   Future<void> _loadNotificationPreference() async {
-    final user = AuthService().currentUser;
-    if (user != null) {
+    final authVM = Provider.of<AuthViewModel>(context, listen: false);
+    final userId = authVM.userId;
+    if (userId != null) {
       final prefs = await SharedPreferences.getInstance();
       setState(() {
-        isNotifOn = prefs.getBool('notif_enabled_${user.uid}') ?? false;
+        isNotifOn = prefs.getBool('notif_enabled_$userId') ?? false;
       });
     }
   }
@@ -73,11 +72,15 @@ class _SettingScreenState extends State<SettingScreen> {
                         setState(() {
                           isNotifOn = val; // Switch update karega
                         });
-                        final user = AuthService().currentUser;
-                        if (user != null) {
+                        final authVM = Provider.of<AuthViewModel>(
+                          context,
+                          listen: false,
+                        );
+                        final userId = authVM.userId;
+                        if (userId != null) {
                           final prefs = await SharedPreferences.getInstance();
                           // Setting ko mobile mein save karna
-                          await prefs.setBool('notif_enabled_${user.uid}', val);
+                          await prefs.setBool('notif_enabled_$userId', val);
                         }
                       },
                     ),
@@ -108,6 +111,7 @@ class _SettingScreenState extends State<SettingScreen> {
                       },
                     ),
 
+                    /*
                     // Naya Task banane wala option (Admin/Special users ke liye)
                     SettingsTile(
                       imagePath: AppAssets.passIcon,
@@ -132,6 +136,7 @@ class _SettingScreenState extends State<SettingScreen> {
                         );
                       },
                     ),
+                    */
                     // App ke baaray mein maloomat
                     SettingsTile(
                       imagePath: AppAssets.aboutIcon,
@@ -175,48 +180,53 @@ class _SettingScreenState extends State<SettingScreen> {
                             title: "Logout",
                             message: "Are you sure you want to logout?",
                             onConfirm: () async {
-                              // Navigator ko pehle store karna async gap se bachnay ke liye
                               final navigator = Navigator.of(
                                 context,
                                 rootNavigator: true,
                               );
 
-                              navigator.pop(); // Confirmation dialog band karna
+                              // Dialog band karna
+                              navigator.pop();
+
                               setState(() => _isLoggingOut = true);
 
                               try {
-                                // 2 seconds ka intezar smooth UX ke liye
-                                await Future.delayed(
-                                  const Duration(seconds: 2),
-                                );
-
-                                // Sign out karna (Custom API integration)
                                 final authVM = Provider.of<AuthViewModel>(
                                   context,
                                   listen: false,
                                 );
-                                await authVM.logout();
 
-                                // Login screen per wapis bhejna
-                                if (context.mounted) {
-                                  Navigator.of(
-                                    context,
-                                    rootNavigator: true,
-                                  ).pushAndRemoveUntil(
-                                    MaterialPageRoute(
-                                      builder: (context) => const LoginScreen(),
-                                    ),
-                                    (route) => false,
-                                  );
+                                // Sign out karna (API call)
+                                bool success = await authVM.logout();
+
+                                if (success) {
+                                  // Hamesha Login screen per wapis bhejna agar success ho
+                                  if (mounted) {
+                                    navigator.pushAndRemoveUntil(
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            const LoginScreen(),
+                                      ),
+                                      (route) => false,
+                                    );
+                                  }
+                                } else {
+                                  // Agar internet nahi hai ya koi aur masla hai
+                                  if (mounted) {
+                                    SnackbarHelper.showTopSnackBar(
+                                      context,
+                                      authVM.errorMessage ??
+                                          "Logout failed. Technical issue.",
+                                      isError: true,
+                                    );
+                                  }
                                 }
                               } catch (e) {
                                 debugPrint("Logout error: $e");
-                                navigator.pushAndRemoveUntil(
-                                  MaterialPageRoute(
-                                    builder: (context) => const LoginScreen(),
-                                  ),
-                                  (route) => false,
-                                );
+                              } finally {
+                                if (mounted) {
+                                  setState(() => _isLoggingOut = false);
+                                }
                               }
                             },
                           ),

@@ -23,6 +23,7 @@ class QuestDetailScreen extends StatefulWidget {
 }
 
 class _QuestDetailScreenState extends State<QuestDetailScreen> {
+  bool _isNavigating = false;
   @override
   Widget build(BuildContext context) {
     final String description =
@@ -87,7 +88,7 @@ class _QuestDetailScreenState extends State<QuestDetailScreen> {
                 Padding(
                   padding: EdgeInsets.fromLTRB(20.w, 0, 20.w, 12.h),
                   child: CustomButton(
-                    isLoading: questVM.isLoading,
+                    isLoading: questVM.isLoading || _isNavigating,
                     text: widget.quest.status == 'pending'
                         ? "START QUEST"
                         : "COMPLETE QUEST",
@@ -114,32 +115,23 @@ class _QuestDetailScreenState extends State<QuestDetailScreen> {
                           );
                         }
                       } else {
-                        // Quest mukammal karne ka logic
-                        if (widget.quest.images != null &&
-                            widget.quest.images!.isNotEmpty) {
-                          final success = await questVM.updateStatus(
-                            widget.quest.id!,
-                            'complete',
-                          );
-                          if (success && context.mounted) {
-                            Navigator.of(context).pushAndRemoveUntil(
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    const HomePageScreen(initialTabIndex: 1),
-                              ),
-                              (route) => false,
-                            );
-                          }
-                        } else {
-                          // Agar images nahi hain to upload screen pe bhejo
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  UploadPictureScreen(quest: widget.quest),
-                            ),
-                          );
-                        }
+                        // Quest mukammal karne ke liye hamesha upload screen pe bhejo
+                        setState(() => _isNavigating = true);
+
+                        // User feedback ke liye thora delay taake loader dikhayi day
+                        await Future.delayed(const Duration(milliseconds: 600));
+
+                        if (!mounted) return;
+
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                UploadPictureScreen(quest: widget.quest),
+                          ),
+                        ).then((_) {
+                          if (mounted) setState(() => _isNavigating = false);
+                        });
                       }
                     },
                   ),

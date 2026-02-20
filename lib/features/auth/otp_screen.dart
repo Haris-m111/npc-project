@@ -390,8 +390,6 @@ class _OtpScreenState extends State<OtpScreen> {
                               isSuccess: true,
                             );
 
-                            // Required delay for smooth experience
-                            await Future.delayed(const Duration(seconds: 1));
                             if (!context.mounted) return;
 
                             // Signup flow: Password create karne wali screen pe jao
@@ -432,7 +430,6 @@ class _OtpScreenState extends State<OtpScreen> {
                               authVM.successMessage ?? "OTP Successful",
                               isSuccess: true,
                             );
-                            await Future.delayed(const Duration(seconds: 1));
                             if (!context.mounted) return;
 
                             // Forgot password flow: Naya password set karne wali screen pe jao

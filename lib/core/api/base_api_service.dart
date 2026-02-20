@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:io';
+import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import 'package:npc/core/services/token_service.dart';
@@ -29,6 +31,7 @@ class BaseApiService {
       debugPrint("API Response: ${response.statusCode} - ${response.body}");
       return _returnResponse(response);
     } catch (e) {
+      _handleException(e);
       rethrow;
     }
   }
@@ -54,6 +57,7 @@ class BaseApiService {
       debugPrint("API Response: ${response.statusCode} - ${response.body}");
       return _returnResponse(response);
     } catch (e) {
+      _handleException(e);
       rethrow;
     }
   }
@@ -73,6 +77,7 @@ class BaseApiService {
       debugPrint("API Response: ${response.statusCode} - ${response.body}");
       return _returnResponse(response);
     } catch (e) {
+      _handleException(e);
       rethrow;
     }
   }
@@ -86,6 +91,7 @@ class BaseApiService {
       );
       return _returnResponse(response);
     } catch (e) {
+      _handleException(e);
       rethrow;
     }
   }
@@ -110,6 +116,7 @@ class BaseApiService {
       debugPrint("API Response: ${response.statusCode} - ${response.body}");
       return _returnResponse(response);
     } catch (e) {
+      _handleException(e);
       rethrow;
     }
   }
@@ -134,6 +141,7 @@ class BaseApiService {
       debugPrint("API Response: ${response.statusCode} - ${response.body}");
       return _returnResponse(response);
     } catch (e) {
+      _handleException(e);
       rethrow;
     }
   }
@@ -153,6 +161,7 @@ class BaseApiService {
       debugPrint("API Response: ${response.statusCode} - ${response.body}");
       return _returnResponse(response);
     } catch (e) {
+      _handleException(e);
       rethrow;
     }
   }
@@ -190,6 +199,7 @@ class BaseApiService {
       debugPrint("API Response: ${response.statusCode} - ${response.body}");
       return _returnResponse(response);
     } catch (e) {
+      _handleException(e);
       rethrow;
     }
   }
@@ -247,6 +257,15 @@ class BaseApiService {
           serverMessage ??
               'Unexpected error occurred (${response.statusCode}).',
         );
+    }
+  }
+
+  // Network exceptions (Internet issue) ko user-friendly banayein
+  void _handleException(dynamic e) {
+    if (e is SocketException) {
+      throw ApiException(001, "Check your internet connection");
+    } else if (e is TimeoutException) {
+      throw ApiException(002, "Request timed out. Please try again.");
     }
   }
 }

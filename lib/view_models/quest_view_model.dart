@@ -22,16 +22,30 @@ class QuestViewModel with ChangeNotifier {
   List<QuestModel> _inProgressQuests = [];
   List<QuestModel> get inProgressQuests => _inProgressQuests;
 
-  List<QuestModel> _completedQuests = [];
-  List<QuestModel> get completedQuests => _completedQuests;
+  List<QuestModel> _submittedQuests = [];
+  List<QuestModel> get submittedQuests => _submittedQuests;
 
-  // Counters for UI
+  List<QuestModel> _approvedQuests = [];
+  List<QuestModel> get approvedQuests => _approvedQuests;
+
+  List<QuestModel> _rejectedQuests = [];
+  List<QuestModel> get rejectedQuests => _rejectedQuests;
+
+  // UI Tab ke liye combined list (Sirf Approved aur Rejected dikhayenge)
+  List<QuestModel> get completedQuests => [
+    ..._approvedQuests,
+    ..._rejectedQuests,
+  ];
+
+  // Counters for UI (Submitted ko Completed mein nahi ginain gay)
   int get pendingCount => _pendingQuests.length;
-  int get completedCount => _completedQuests.length;
+  int get completedCount => _approvedQuests.length + _rejectedQuests.length;
   int get totalCount =>
       _pendingQuests.length +
       _inProgressQuests.length +
-      _completedQuests.length;
+      _submittedQuests.length +
+      _approvedQuests.length +
+      _rejectedQuests.length;
 
   void _setLoading(bool value) {
     _isLoading = value;
@@ -125,8 +139,8 @@ class QuestViewModel with ChangeNotifier {
   }
 
   // User ke apne quests fetch karne ka function
-  Future<void> fetchMyQuests(String status) async {
-    _setLoading(true);
+  Future<void> fetchMyQuests(String status, {bool showLoading = true}) async {
+    if (showLoading) _setLoading(true);
     _errorMessage = null;
 
     try {
@@ -136,11 +150,43 @@ class QuestViewModel with ChangeNotifier {
         _pendingQuests = response.quests ?? [];
       } else if (status == 'in-progress') {
         _inProgressQuests = response.quests ?? [];
-      } else if (status == 'submitted' ||
-          status == 'completed' ||
-          status == 'approved' ||
-          status == 'rejected') {
-        _completedQuests = response.quests ?? [];
+      } else if (status == 'submitted') {
+        _submittedQuests = response.quests ?? [];
+      } else if (status == 'approved') {
+        _approvedQuests = response.quests ?? [];
+      } else if (status == 'rejected') {
+        _rejectedQuests = response.quests ?? [];
+      }
+
+      if (showLoading) _setLoading(false);
+    } catch (e) {
+      if (e is ApiException) {
+        _errorMessage = e.message;
+      } else {
+        _errorMessage = e.toString();
+      }
+      if (showLoading) _setLoading(false);
+    }
+  }
+
+  // Quests fetch karne ka main function (Global Quests)
+  Future<void> fetchQuests(String status) async {
+    _setLoading(true);
+    _errorMessage = null;
+
+    try {
+      final response = await _questRepo.getAllQuests(status: status);
+
+      if (status == 'pending') {
+        _pendingQuests = response.quests ?? [];
+      } else if (status == 'in-progress') {
+        _inProgressQuests = response.quests ?? [];
+      } else if (status == 'submitted') {
+        _submittedQuests = response.quests ?? [];
+      } else if (status == 'approved') {
+        _approvedQuests = response.quests ?? [];
+      } else if (status == 'rejected') {
+        _rejectedQuests = response.quests ?? [];
       }
 
       _setLoading(false);
@@ -169,11 +215,12 @@ class QuestViewModel with ChangeNotifier {
         _pendingQuests = response.quests ?? [];
       } else if (status == 'in-progress') {
         _inProgressQuests = response.quests ?? [];
-      } else if (status == 'submitted' ||
-          status == 'completed' ||
-          status == 'approved' ||
-          status == 'rejected') {
-        _completedQuests = response.quests ?? [];
+      } else if (status == 'submitted') {
+        _submittedQuests = response.quests ?? [];
+      } else if (status == 'approved') {
+        _approvedQuests = response.quests ?? [];
+      } else if (status == 'rejected') {
+        _rejectedQuests = response.quests ?? [];
       }
 
       _setLoading(false);
@@ -187,37 +234,7 @@ class QuestViewModel with ChangeNotifier {
     }
   }
 
-  // Quests fetch karne ka main function (Global Quests)
-  Future<void> fetchQuests(String status) async {
-    _setLoading(true);
-    _errorMessage = null;
-
-    try {
-      final response = await _questRepo.getAllQuests(status: status);
-
-      if (status == 'pending') {
-        _pendingQuests = response.quests ?? [];
-      } else if (status == 'in-progress') {
-        _inProgressQuests = response.quests ?? [];
-      } else if (status == 'submitted' ||
-          status == 'completed' ||
-          status == 'approved' ||
-          status == 'rejected') {
-        _completedQuests = response.quests ?? [];
-      }
-
-      _setLoading(false);
-    } catch (e) {
-      if (e is ApiException) {
-        _errorMessage = e.message;
-      } else {
-        _errorMessage = e.toString();
-      }
-      _setLoading(false);
-    }
-  }
-
-  // Quest status update karne ka function (Action logic: start, complete, submit, approve, reject)
+  // Quest status update karne ka function
   Future<bool> updateStatus(String questId, String action) async {
     _setLoading(true);
     _errorMessage = null;
@@ -226,32 +243,15 @@ class QuestViewModel with ChangeNotifier {
       await _questRepo.updateQuestStatus(questId, action);
       _successMessage = "Status updated successfully: $action";
 
-      // Data refresh kryn gay taake UI update ho jaye
-      // Action ke mutabiq sahi lists ko refresh karna zaroori ha
+      // Refresh relevant lists only
       if (action == 'start') {
-        // Pending se In-Progress mein chala gaya
-        await fetchQuests('pending');
-        await fetchQuests('in-progress');
-      } else if (action == 'complete') {
-        // In-Progress se Completed status (Submitted list mein dikhayenge review ke liye)
-        await fetchQuests('in-progress');
-        await fetchQuests('submitted');
-      } else if (action == 'submit') {
-        // Final submission
-        await fetchQuests('in-progress');
-        await fetchQuests('submitted');
-      } else if (action == 'approve' || action == 'reject') {
-        // Admin ya Reviewer ke actions
-        await fetchQuests('submitted');
-        await fetchQuests(
-          'approved',
-        ); // Agar hum approved ki alag list rakhty hain
-        await fetchQuests('rejected');
+        await fetchMyQuests('pending', showLoading: false);
+        await fetchMyQuests('in-progress', showLoading: false);
+      } else if (action == 'complete' || action == 'submit') {
+        await fetchMyQuests('in-progress', showLoading: false);
+        await fetchMyQuests('submitted', showLoading: false);
       } else {
-        // Default: Sab refresh kryn
-        await fetchQuests('pending');
-        await fetchQuests('in-progress');
-        await fetchQuests('submitted');
+        await fetchAllMyQuests();
       }
 
       _setLoading(false);
@@ -279,10 +279,7 @@ class QuestViewModel with ChangeNotifier {
     try {
       await _questRepo.addTeamMembers(questId, userId, userIds);
       _successMessage = "Team members added successfully";
-
-      // List ko refresh karna (optional: agar humein current details chahiye)
       await fetchQuestDetails(questId);
-
       _setLoading(false);
       return true;
     } catch (e) {
@@ -304,10 +301,7 @@ class QuestViewModel with ChangeNotifier {
     try {
       await _questRepo.removeTeamMember(questId, userId);
       _successMessage = "Team member removed successfully";
-
-      // Quest details ko refresh karna taake UI update ho jaye
       await fetchQuestDetails(questId);
-
       _setLoading(false);
       return true;
     } catch (e) {
@@ -318,6 +312,24 @@ class QuestViewModel with ChangeNotifier {
       }
       _setLoading(false);
       return false;
+    }
+  }
+
+  // Parallel mein saray types ke Quests mangwana
+  Future<void> fetchAllMyQuests() async {
+    _setLoading(true);
+    try {
+      await Future.wait([
+        fetchMyQuests('pending', showLoading: false),
+        fetchMyQuests('in-progress', showLoading: false),
+        fetchMyQuests('submitted', showLoading: false),
+        fetchMyQuests('approved', showLoading: false),
+        fetchMyQuests('rejected', showLoading: false),
+      ]);
+    } catch (e) {
+      debugPrint("Error fetching all my quests: $e");
+    } finally {
+      _setLoading(false);
     }
   }
 }

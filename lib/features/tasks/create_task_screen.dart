@@ -7,11 +7,12 @@ import 'package:npc/core/widgets/custom_button.dart';
 import 'package:npc/core/widgets/custom_textfields.dart';
 import 'package:npc/core/widgets/custom_loading_indicator.dart';
 import 'package:npc/core/utils/snackbar_helper.dart';
-import 'package:npc/core/services/auth_service.dart';
-import 'package:npc/features/tasks/data/task_model.dart';
-import 'package:npc/features/tasks/services/task_service.dart';
+import 'package:npc/data/models/quest_model.dart';
+import 'package:npc/view_models/quest_view_model.dart';
+import 'package:npc/view_models/profile_view_model.dart';
 import 'package:npc/core/widgets/custom_dialogue.dart';
 import 'package:npc/features/home/home_page_screen.dart';
+import 'package:provider/provider.dart';
 
 class CreateTaskScreen extends StatefulWidget {
   const CreateTaskScreen({super.key});
@@ -30,7 +31,6 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
   List<String> _selectedAssigneeNames =
       []; // Un users ke naam (display ke liye)
 
-  bool _isLoading = false; // Task create karte waqt loading
   bool _isUsersLoading = false; // Users ki list fetch karte waqt loading
   List<Map<String, dynamic>> _users = []; // App ke tamam users ki list
 
@@ -40,15 +40,30 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
     _fetchUsers();
   }
 
-  // App ke tamam users ko Firestore se nikalna taake task assign kiya ja sakay
+  // App ke tamam users ko API se nikalna taake task assign kiya ja sakay
   Future<void> _fetchUsers() async {
+    // Note: Filhaal hum sirf current user ko assignee list mein dikha rahe hain
+    // Jab API users list provide karega to yahan update karyn gay.
     setState(() => _isUsersLoading = true);
-    final users = await AuthService().getAllUsers();
-    if (mounted) {
+
+    // Attempting to use current profile as default assignee if needed
+    final profileVM = Provider.of<ProfileViewModel>(context, listen: false);
+    if (profileVM.userProfile == null) {
+      await profileVM.getProfile();
+    }
+
+    if (mounted && profileVM.userProfile != null) {
       setState(() {
-        _users = users;
+        _users = [
+          {
+            'uid': profileVM.userId ?? '',
+            'name': profileVM.userProfile?.name ?? 'Me',
+          },
+        ];
         _isUsersLoading = false;
       });
+    } else {
+      setState(() => _isUsersLoading = false);
     }
   }
 
@@ -113,21 +128,15 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
                     : SingleChildScrollView(
                         child: ListBody(
                           children: _users.map((user) {
-                            final bool isUnknown =
-                                user['name'] == null ||
-                                user['name'].toString().trim().isEmpty;
-                            final isSelected = tempSelectedIds.contains(
-                              user['uid'],
-                            );
+                            final String name = user['name'] ?? 'Unknown User';
+                            final String uid = user['uid'] ?? '';
+                            final isSelected = tempSelectedIds.contains(uid);
                             return CheckboxListTile(
-                              enabled: !isUnknown,
                               value: isSelected,
                               title: Text(
-                                isUnknown ? 'Unknown User' : user['name'],
+                                name,
                                 style: AppTextStyles.body.copyWith(
-                                  color: isUnknown
-                                      ? AppColors.textGrey
-                                      : AppColors.black,
+                                  color: AppColors.black,
                                 ),
                               ),
                               activeColor: AppColors.primary,
@@ -135,9 +144,9 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
                               onChanged: (bool? checked) {
                                 setStateDialog(() {
                                   if (checked == true) {
-                                    tempSelectedIds.add(user['uid']);
+                                    tempSelectedIds.add(uid);
                                   } else {
-                                    tempSelectedIds.remove(user['uid']);
+                                    tempSelectedIds.remove(uid);
                                   }
                                 });
                               },
@@ -287,7 +296,11 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
                                   _selectedAssigneeNames.isEmpty
                                       ? "Select assignees"
                                       : _selectedAssigneeNames.join(", "),
-                                  style: AppTextStyles.headingsmall,
+                                  style: AppTextStyles.headingsmall.copyWith(
+                                    color: _selectedAssigneeNames.isEmpty
+                                        ? AppColors.textLightGrey
+                                        : AppColors.black,
+                                  ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -309,116 +322,128 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
               // Button (Fixed at bottom)
               Padding(
                 padding: EdgeInsets.fromLTRB(20.w, 0, 20.w, 12.h),
-                child: _isLoading
-                    ? const CustomLoadingIndicator()
-                    : CustomButton(
-                        text: "CREATE TASK",
-                        onPressed: () async {
-                          // Forcefully dismiss keyboard at the very beginning
-                          FocusManager.instance.primaryFocus?.unfocus();
-                          FocusScope.of(context).unfocus();
+                child: Consumer<QuestViewModel>(
+                  builder: (context, questVM, child) {
+                    return questVM.isLoading
+                        ? const CustomLoadingIndicator()
+                        : CustomButton(
+                            text: "CREATE TASK",
+                            onPressed: () async {
+                              // Forcefully dismiss keyboard at the very beginning
+                              FocusManager.instance.primaryFocus?.unfocus();
+                              FocusScope.of(context).unfocus();
 
-                          // Validation
-                          if (_titleController.text.trim().isEmpty) {
-                            SnackbarHelper.showTopSnackBar(
-                              context,
-                              "Please enter task title",
-                              isError: true,
-                            );
-                            return;
-                          }
-
-                          if (_descriptionController.text.trim().isEmpty) {
-                            SnackbarHelper.showTopSnackBar(
-                              context,
-                              "Please enter task description",
-                              isError: true,
-                            );
-                            return;
-                          }
-
-                          if (_selectedDeadline == null) {
-                            SnackbarHelper.showTopSnackBar(
-                              context,
-                              "Please select deadline date",
-                              isError: true,
-                            );
-                            return;
-                          }
-
-                          if (_selectedAssigneeIds.isEmpty) {
-                            SnackbarHelper.showTopSnackBar(
-                              context,
-                              "Please select at least one assignee",
-                              isError: true,
-                            );
-                            return;
-                          }
-
-                          setState(() => _isLoading = true);
-                          // Delay to ensure keyboard is fully dismissed
-                          await Future.delayed(
-                            const Duration(milliseconds: 300),
-                          );
-
-                          try {
-                            // Task banane wala (Current Admin) nikalna
-                            final currentUser = await AuthService()
-                                .getCurrentUserData();
-                            final creatorId = currentUser?['uid'] ?? '';
-
-                            // Naya Task object taiyar karna
-                            final newTask = TaskModel(
-                              id: '', // Firestore khud ID banayega
-                              title: _titleController.text.trim(),
-                              description: _descriptionController.text.trim(),
-                              deadline: _selectedDeadline!,
-                              assigneeIds: _selectedAssigneeIds,
-                              creatorId: creatorId,
-                              createdAt: DateTime.now(),
-                            );
-
-                            // Database mein save karna
-                            await TaskService().createTask(newTask);
-
-                            if (!context.mounted) return;
-                            setState(() => _isLoading = false);
-
-                            // Kamyabi ka dialog
-                            showDialog(
-                              context: context,
-                              barrierDismissible: false,
-                              builder: (context) =>
-                                  const CustomDialogue(title: "Task Created"),
-                            );
-
-                            // 2 second baad Home Page pe wapis jana
-                            Future.delayed(const Duration(seconds: 2), () {
-                              if (context.mounted) {
-                                Navigator.of(
+                              // Validation
+                              if (_titleController.text.trim().isEmpty) {
+                                SnackbarHelper.showTopSnackBar(
                                   context,
-                                ).pop(); // Dialog band karein
-                                Navigator.of(context).pushAndRemoveUntil(
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        const HomePageScreen(),
-                                  ),
-                                  (route) =>
-                                      false, // Purane raste khatam karein
+                                  "Please enter task title",
+                                  isError: true,
+                                );
+                                return;
+                              }
+
+                              if (_descriptionController.text.trim().isEmpty) {
+                                SnackbarHelper.showTopSnackBar(
+                                  context,
+                                  "Please enter task description",
+                                  isError: true,
+                                );
+                                return;
+                              }
+
+                              if (_selectedDeadline == null) {
+                                SnackbarHelper.showTopSnackBar(
+                                  context,
+                                  "Please select deadline date",
+                                  isError: true,
+                                );
+                                return;
+                              }
+
+                              if (_selectedAssigneeIds.isEmpty) {
+                                SnackbarHelper.showTopSnackBar(
+                                  context,
+                                  "Please select at least one assignee",
+                                  isError: true,
+                                );
+                                return;
+                              }
+
+                              // Delay to ensure keyboard is fully dismissed
+                              await Future.delayed(
+                                const Duration(milliseconds: 300),
+                              );
+
+                              try {
+                                // Naya Quest object taiyar karna (API expects QuestModel)
+                                final newQuest = QuestModel(
+                                  title: _titleController.text.trim(),
+                                  description: _descriptionController.text
+                                      .trim(),
+                                  dueDate: _selectedDeadline,
+                                  teamMembers: _selectedAssigneeIds,
+                                  status: 'pending',
+                                  createdAt: DateTime.now(),
+                                );
+
+                                // API call ke zariye save karna
+                                final response = await questVM.createQuest(
+                                  newQuest,
+                                );
+
+                                if (!context.mounted) return;
+
+                                if (response != null) {
+                                  // Kamyabi ka dialog
+                                  showDialog(
+                                    context: context,
+                                    barrierDismissible: false,
+                                    builder: (context) => const CustomDialogue(
+                                      title: "Task Created",
+                                    ),
+                                  );
+
+                                  // 2 second baad Home Page pe wapis jana
+                                  Future.delayed(
+                                    const Duration(seconds: 2),
+                                    () {
+                                      if (context.mounted) {
+                                        Navigator.of(
+                                          context,
+                                        ).pop(); // Dialog band karein
+                                        Navigator.of(
+                                          context,
+                                        ).pushAndRemoveUntil(
+                                          MaterialPageRoute(
+                                            builder: (context) =>
+                                                const HomePageScreen(),
+                                          ),
+                                          (route) => false,
+                                        );
+                                      }
+                                    },
+                                  );
+                                } else {
+                                  SnackbarHelper.showTopSnackBar(
+                                    context,
+                                    questVM.errorMessage ??
+                                        "Failed to create task",
+                                    isError: true,
+                                  );
+                                }
+                              } catch (e) {
+                                if (!context.mounted) return;
+                                SnackbarHelper.showTopSnackBar(
+                                  context,
+                                  "An error occurred: $e",
+                                  isError: true,
                                 );
                               }
-                            });
-                          } catch (e) {
-                            if (!context.mounted) return;
-                            setState(() => _isLoading = false);
-                            SnackbarHelper.showTopSnackBar(
-                              context,
-                              "Failed to create task",
-                              isError: true,
-                            );
-                          }
-                        },
-                      ),
+                            },
+                          );
+                  },
+                ),
               ),
             ],
           ),

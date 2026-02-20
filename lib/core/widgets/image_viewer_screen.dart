@@ -8,9 +8,15 @@ import 'dart:io';
 // Poori screen pe image dekhne ke liye widget
 class ImageViewerScreen extends StatelessWidget {
   final String? base64Image; // Image ka data (Base64 format mein)
+  final String? imageUrl; // Image ka URL (network image)
   final File? imageFile; // Image ki file (agar local storage mein ho)
 
-  const ImageViewerScreen({super.key, this.base64Image, this.imageFile});
+  const ImageViewerScreen({
+    super.key,
+    this.base64Image,
+    this.imageUrl,
+    this.imageFile,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -23,13 +29,31 @@ class ImageViewerScreen extends StatelessWidget {
             child: InteractiveViewer(
               minScale: 0.5,
               maxScale: 4.0,
-              // Agar file mojood hai to file dikhao, warna base64 decode kar ke memory se dikhao
+              // Check kar rhy hain k konsi type ki image dikhani ha
               child: imageFile != null
                   ? Image.file(imageFile!, fit: BoxFit.contain)
-                  : Image.memory(
-                      base64Decode(base64Image!),
-                      fit: BoxFit.contain,
-                    ),
+                  : (imageUrl != null
+                        ? Image.network(
+                            imageUrl!,
+                            fit: BoxFit.contain,
+                            loadingBuilder: (context, child, progress) {
+                              if (progress == null) return child;
+                              return const Center(
+                                child: CircularProgressIndicator(
+                                  color: AppColors.primary,
+                                ),
+                              );
+                            },
+                            errorBuilder: (context, error, stack) => const Icon(
+                              Icons.broken_image,
+                              color: Colors.white,
+                              size: 50,
+                            ),
+                          )
+                        : Image.memory(
+                            base64Decode(base64Image!),
+                            fit: BoxFit.contain,
+                          )),
             ),
           ),
           // Screen ko band (close) karne ke liye top-right button

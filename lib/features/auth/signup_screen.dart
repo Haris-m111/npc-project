@@ -115,8 +115,6 @@ class _SignupState extends State<Signup> {
                                 authVM.successMessage ?? "Signup successful",
                                 isSuccess: true,
                               );
-                              // Thora intezar taake message nazar aa jaye
-                              await Future.delayed(const Duration(seconds: 1));
                               if (!context.mounted) return;
 
                               // OTP verify karne wali screen pe bhijwao

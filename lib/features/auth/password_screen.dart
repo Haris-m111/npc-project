@@ -7,7 +7,6 @@ import 'package:npc/core/widgets/custom_appbar.dart';
 import 'package:npc/core/widgets/custom_button.dart';
 import 'package:npc/core/constants/app_assets.dart';
 import 'package:npc/core/widgets/custom_textfields.dart';
-import 'package:npc/core/services/auth_service.dart';
 import 'package:npc/core/utils/snackbar_helper.dart';
 import 'package:npc/features/auth/login_screen.dart';
 import 'package:provider/provider.dart';
@@ -43,8 +42,7 @@ class PasswordScreen extends StatefulWidget {
 class _PasswordScreenState extends State<PasswordScreen> {
   final TextEditingController _passController = TextEditingController();
   final TextEditingController _confirmPassController = TextEditingController();
-  bool _isLoading = false; // Firebase operations ke liye (Forgot Password)
-  bool _emailSent = false; // Password reset link status
+  bool _isLoading = false; // API operations ke liye
 
   @override
   void dispose() {
@@ -77,62 +75,33 @@ class _PasswordScreenState extends State<PasswordScreen> {
                       Text(widget.title, style: AppTextStyles.mainheading),
                       SizedBox(height: 16.h),
                       Text(widget.description, style: AppTextStyles.bodysmall),
-                      SizedBox(height: 20.h),
-                      if (_emailSent) ...[
-                        Center(
-                          child: Icon(
-                            Icons.mark_email_read_outlined,
-                            size: 80.sp,
-                            color: AppColors.primary,
-                          ),
+                      Text(
+                        widget.firstFieldLabel,
+                        style: AppTextStyles.body.copyWith(
+                          color: AppColors.black,
                         ),
-                        SizedBox(height: 24.h),
-                        Text(
-                          "We've sent a password reset link to your email. Please check your inbox and follow the link to update your password.",
-                          textAlign: TextAlign.center,
-                          style: AppTextStyles.body.copyWith(
-                            color: AppColors.textGrey,
-                            height: 1.5,
-                          ),
+                      ),
+                      SizedBox(height: 10.h),
+                      CustomTextfields(
+                        controller: _passController,
+                        hintText: "Enter your password",
+                        isPassword: true,
+                        prefixIconPath: AppAssets.lockIcon,
+                      ),
+                      SizedBox(height: 16.h),
+                      Text(
+                        widget.secondFieldLabel,
+                        style: AppTextStyles.body.copyWith(
+                          color: AppColors.black,
                         ),
-                        SizedBox(height: 12.h),
-                        Text(
-                          "Once you have updated it, you can proceed to the Login screen.",
-                          textAlign: TextAlign.center,
-                          style: AppTextStyles.bodysmall.copyWith(
-                            color: AppColors.black,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ] else ...[
-                        Text(
-                          widget.firstFieldLabel,
-                          style: AppTextStyles.body.copyWith(
-                            color: AppColors.black,
-                          ),
-                        ),
-                        SizedBox(height: 10.h),
-                        CustomTextfields(
-                          controller: _passController,
-                          hintText: "Enter your password",
-                          isPassword: true,
-                          prefixIconPath: AppAssets.lockIcon,
-                        ),
-                        SizedBox(height: 16.h),
-                        Text(
-                          widget.secondFieldLabel,
-                          style: AppTextStyles.body.copyWith(
-                            color: AppColors.black,
-                          ),
-                        ),
-                        SizedBox(height: 10.h),
-                        CustomTextfields(
-                          controller: _confirmPassController,
-                          hintText: "Confirm your password",
-                          isPassword: true,
-                          prefixIconPath: AppAssets.lockIcon,
-                        ),
-                      ],
+                      ),
+                      SizedBox(height: 10.h),
+                      CustomTextfields(
+                        controller: _confirmPassController,
+                        hintText: "Confirm your password",
+                        isPassword: true,
+                        prefixIconPath: AppAssets.lockIcon,
+                      ),
                       SizedBox(height: 20.h),
                     ],
                   ),
@@ -144,35 +113,11 @@ class _PasswordScreenState extends State<PasswordScreen> {
                   builder: (context, authVM, child) {
                     return CustomButton(
                       isLoading: authVM.isLoading || _isLoading,
-                      text: _emailSent
-                          ? "VERIFY & GO TO LOGIN"
-                          : widget.buttonText,
+                      text: widget.buttonText,
                       onPressed: () async {
                         FocusScope.of(context).unfocus();
 
                         final pass = _passController.text.trim();
-
-                        if (_emailSent) {
-                          setState(() => _isLoading = true);
-                          try {
-                            // Firebase verification flow
-                            await AuthService().login(widget.email, pass);
-                            await AuthService().signOut();
-                            if (!context.mounted) return;
-                            widget.onButtonPressed(context);
-                          } catch (e) {
-                            if (context.mounted) {
-                              SnackbarHelper.showTopSnackBar(
-                                context,
-                                "Verification failed. Link check kryn.",
-                                isError: true,
-                              );
-                            }
-                          } finally {
-                            if (mounted) setState(() => _isLoading = false);
-                          }
-                          return;
-                        }
 
                         final confirmPass = _confirmPassController.text.trim();
 
@@ -223,7 +168,6 @@ class _PasswordScreenState extends State<PasswordScreen> {
                                   "Password updated successfully!",
                               isSuccess: true,
                             );
-                            await Future.delayed(const Duration(seconds: 1));
                             if (!context.mounted) return;
 
                             // Success kay baad Login screen par bhej rhy hain
@@ -256,7 +200,6 @@ class _PasswordScreenState extends State<PasswordScreen> {
                               authVM.successMessage ?? "Password created!",
                               isSuccess: true,
                             );
-                            await Future.delayed(const Duration(seconds: 1));
                             if (!context.mounted) return;
                             Navigator.of(context).pushAndRemoveUntil(
                               MaterialPageRoute(

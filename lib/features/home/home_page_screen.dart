@@ -33,10 +33,10 @@ class _HomePageScreenState extends State<HomePageScreen> {
     super.initState();
     _currentTabIndex = widget.initialTabIndex;
 
-    // Profile aur Quest data fetch karna API se
+    // Profile aur ALL Quest data fetch karna API se (For accurate counters)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<ProfileViewModel>(context, listen: false).getProfile();
-      _fetchQuestsForCurrentTab();
+      Provider.of<QuestViewModel>(context, listen: false).fetchAllMyQuests();
     });
   }
 
@@ -54,7 +54,10 @@ class _HomePageScreenState extends State<HomePageScreen> {
   // Screen ko refresh karne ke liye logic
   Future<void> _refreshTasks() async {
     await Provider.of<ProfileViewModel>(context, listen: false).getProfile();
-    _fetchQuestsForCurrentTab();
+    await Provider.of<QuestViewModel>(
+      context,
+      listen: false,
+    ).fetchAllMyQuests();
 
     // UX behtar karne ke liye thora delay
     await Future.delayed(const Duration(milliseconds: 500));

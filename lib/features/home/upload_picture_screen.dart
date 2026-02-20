@@ -10,9 +10,12 @@ import 'package:npc/core/widgets/custom_dialogue.dart';
 import 'package:npc/core/widgets/custom_loading_indicator.dart';
 import 'package:npc/core/utils/snackbar_helper.dart';
 import 'package:npc/core/widgets/image_viewer_screen.dart';
-import 'dart:convert';
 import 'package:npc/data/models/quest_model.dart';
-import 'package:npc/features/home/quest_detail_screen.dart';
+import 'package:provider/provider.dart';
+import 'package:npc/view_models/quest_view_model.dart';
+import 'package:npc/view_models/s3_view_model.dart';
+import 'package:npc/view_models/auth_view_model.dart';
+import 'package:npc/features/home/home_page_screen.dart';
 
 // Quest mukammal karne ke liye tasaveer upload karne wali screen
 class UploadPictureScreen extends StatefulWidget {
@@ -31,17 +34,6 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
     setState(() {
       _uploadedImages.addAll(files);
     });
-  }
-
-  // Tasaveer ko Base64 format mein tabdeel karna (Storage ke liye)
-  Future<List<String>> _convertImagesToBase64() async {
-    List<String> base64Images = [];
-    for (var file in _uploadedImages) {
-      List<int> imageBytes = await file.readAsBytes();
-      String base64Image = base64Encode(imageBytes);
-      base64Images.add(base64Image);
-    }
-    return base64Images;
   }
 
   @override
@@ -216,19 +208,53 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
                         setState(() => _isLoading = true);
 
                         try {
-                          // Tasaveer convert aur upload karne ka process
-                          final images = await _convertImagesToBase64();
-                          // TODO: Implement actual S3 upload or API call for images
-                          // For now, we update the local model and status
+                          final authVM = Provider.of<AuthViewModel>(
+                            context,
+                            listen: false,
+                          );
+                          final s3VM = Provider.of<S3ViewModel>(
+                            context,
+                            listen: false,
+                          );
+                          final questVM = Provider.of<QuestViewModel>(
+                            context,
+                            listen: false,
+                          );
+
+                          // 1. Files ko real backend (S3) par upload kryn
+                          final filePaths = _uploadedImages
+                              .map((e) => e.path)
+                              .toList();
+                          final uploadedUrls = await s3VM.uploadFiles(
+                            email: authVM.userEmail ?? "user@npc.com",
+                            filePaths: filePaths,
+                            scope: 'quests',
+                          );
+
+                          if (uploadedUrls == null || uploadedUrls.isEmpty) {
+                            setState(() => _isLoading = false);
+                            if (context.mounted) {
+                              SnackbarHelper.showTopSnackBar(
+                                context,
+                                s3VM.errorMessage ??
+                                    "Failed to upload images to backend",
+                                isError: true,
+                              );
+                            }
+                            return;
+                          }
 
                           if (!context.mounted) return;
                           setState(() => _isLoading = false);
 
-                          // Upload honey ke baad success dialog dikhao
-                          final dialogTitle = images.length > 1
+                          // 2. Upload honey ke baad success dialog dikhao
+                          final dialogTitle = uploadedUrls.length > 1
                               ? "Pictures Uploaded"
                               : "Picture Uploaded";
 
+                          if (!context.mounted) return;
+
+                          // Dialog dikhao (isay await nahi kryn gay taake hum aglay steps par ja sakein)
                           showDialog(
                             context: context,
                             barrierDismissible: false,
@@ -236,22 +262,41 @@ class _UploadPictureScreenState extends State<UploadPictureScreen> {
                                 CustomDialogue(title: dialogTitle),
                           );
 
-                          // Dialog ke baad wapas quest detail page per bhejo
-                          Future.delayed(const Duration(seconds: 2), () async {
-                            if (!context.mounted) return;
-                            Navigator.of(context).pop();
+                          // 1.2 seconds ka delay taake user message parh sakay
+                          await Future.delayed(
+                            const Duration(milliseconds: 1200),
+                          );
 
-                            // Update local copy
-                            widget.quest.images = images;
+                          if (!context.mounted) return;
 
-                            Navigator.pushReplacement(
-                              context,
+                          // Dialog band kryn navigation se pehle
+                          Navigator.of(context).pop();
+
+                          // 3. Status update karein Backend par
+                          bool statusSuccess = await questVM.updateStatus(
+                            widget.quest.id!,
+                            'complete',
+                          );
+
+                          if (!context.mounted) return;
+
+                          if (statusSuccess) {
+                            // Home page par bhejo baghair kisi delay ke (New Quest Tab)
+                            Navigator.of(context).pushAndRemoveUntil(
                               MaterialPageRoute(
                                 builder: (context) =>
-                                    QuestDetailScreen(quest: widget.quest),
+                                    const HomePageScreen(initialTabIndex: 0),
                               ),
+                              (route) => false,
                             );
-                          });
+                          } else {
+                            SnackbarHelper.showTopSnackBar(
+                              context,
+                              questVM.errorMessage ??
+                                  "Failed to update quest status",
+                              isError: true,
+                            );
+                          }
                         } catch (e) {
                           setState(() => _isLoading = false);
                           if (context.mounted) {

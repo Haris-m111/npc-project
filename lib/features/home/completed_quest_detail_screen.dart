@@ -4,17 +4,19 @@ import 'package:npc/core/constants/app_assets.dart';
 import 'package:npc/core/constants/app_colors.dart';
 import 'package:npc/core/theme/text_styles.dart';
 import 'package:npc/core/widgets/custom_appbar.dart';
-import 'package:npc/features/tasks/data/task_model.dart';
+import 'package:npc/core/widgets/custom_loading_indicator.dart';
+import 'package:npc/data/models/quest_model.dart';
 import 'package:npc/core/widgets/image_viewer_screen.dart';
 import 'dart:convert';
 
 class CompletedQuestDetailScreen extends StatelessWidget {
-  final TaskModel task; // Task ka saara data is model mein hota hai
+  final QuestModel quest; // Quest ka saara data is model mein hota hai
 
-  const CompletedQuestDetailScreen({super.key, required this.task});
+  const CompletedQuestDetailScreen({super.key, required this.quest});
 
   // Date ko readable format (Jan 01, 2024) mein tabdeel karne ke liye helper function
-  String _formatDate(DateTime date) {
+  String _formatDate(DateTime? date) {
+    if (date == null) return "No Date";
     const months = [
       'Jan',
       'Feb',
@@ -57,8 +59,9 @@ class CompletedQuestDetailScreen extends StatelessWidget {
                           SizedBox(height: 32.h),
                           // Task ki description dikhanay ka section
                           Text(
-                            task.description.isNotEmpty
-                                ? task.description
+                            quest.description != null &&
+                                    quest.description!.isNotEmpty
+                                ? quest.description!
                                 : "No description provided.",
                             style: AppTextStyles.body.copyWith(
                               color: AppColors.textDarkGrey,
@@ -78,7 +81,7 @@ class CompletedQuestDetailScreen extends StatelessWidget {
                               ),
                               SizedBox(width: 8.w),
                               Text(
-                                "Deadline: ${_formatDate(task.deadline)}",
+                                "Deadline: ${_formatDate(quest.dueDate)}",
                                 style: AppTextStyles.body.copyWith(
                                   color: AppColors.textDarkGrey,
                                   fontSize: 16.sp,
@@ -98,7 +101,7 @@ class CompletedQuestDetailScreen extends StatelessWidget {
                               ),
                               SizedBox(width: 8.w),
                               Text(
-                                "Submitted On: ${_formatDate(task.createdAt)}",
+                                "Submitted On: ${_formatDate(quest.createdAt)}",
                                 style: AppTextStyles.body.copyWith(
                                   color: AppColors.textDarkGrey,
                                   fontSize: 16.sp,
@@ -109,7 +112,8 @@ class CompletedQuestDetailScreen extends StatelessWidget {
                           SizedBox(height: 32.h),
 
                           // User ne jo images upload ki hain, unka gallery view
-                          if (task.images.isNotEmpty) ...[
+                          if (quest.images != null &&
+                              quest.images!.isNotEmpty) ...[
                             Text(
                               "Task Images",
                               style: AppTextStyles.mainheading.copyWith(
@@ -121,10 +125,13 @@ class CompletedQuestDetailScreen extends StatelessWidget {
                               height: 170.h,
                               child: ListView.separated(
                                 scrollDirection: Axis.horizontal,
-                                itemCount: task.images.length,
+                                itemCount: quest.images!.length,
                                 separatorBuilder: (context, index) =>
                                     SizedBox(width: 16.w),
                                 itemBuilder: (context, index) {
+                                  final String imgData = quest.images![index];
+                                  final bool isUrl = imgData.startsWith('http');
+
                                   return GestureDetector(
                                     onTap: () {
                                       // Image par click karne se image full screen par dikhayi degi
@@ -133,7 +140,12 @@ class CompletedQuestDetailScreen extends StatelessWidget {
                                         MaterialPageRoute(
                                           builder: (context) =>
                                               ImageViewerScreen(
-                                                base64Image: task.images[index],
+                                                base64Image: !isUrl
+                                                    ? imgData
+                                                    : null,
+                                                imageUrl: isUrl
+                                                    ? imgData
+                                                    : null,
                                               ),
                                         ),
                                       );
@@ -154,13 +166,36 @@ class CompletedQuestDetailScreen extends StatelessWidget {
                                         borderRadius: BorderRadius.circular(
                                           15.r,
                                         ),
-                                        child: Image.memory(
-                                          base64Decode(task.images[index]),
-                                          width: 119.w,
-                                          height: 170.h,
-                                          fit: BoxFit.cover,
-                                          filterQuality: FilterQuality.high,
-                                        ),
+                                        child: isUrl
+                                            ? Image.network(
+                                                imgData,
+                                                width: 119.w,
+                                                height: 170.h,
+                                                fit: BoxFit.cover,
+                                                loadingBuilder:
+                                                    (context, child, progress) {
+                                                      if (progress == null) {
+                                                        return child;
+                                                      }
+                                                      return const Center(
+                                                        child:
+                                                            CustomLoadingIndicator(),
+                                                      );
+                                                    },
+                                                errorBuilder:
+                                                    (context, error, stack) =>
+                                                        const Icon(
+                                                          Icons.broken_image,
+                                                        ),
+                                              )
+                                            : Image.memory(
+                                                base64Decode(imgData),
+                                                width: 119.w,
+                                                height: 170.h,
+                                                fit: BoxFit.cover,
+                                                filterQuality:
+                                                    FilterQuality.high,
+                                              ),
                                       ),
                                     ),
                                   );

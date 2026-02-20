@@ -7,16 +7,16 @@ import 'package:npc/core/constants/app_assets.dart';
 import 'package:npc/core/widgets/custom_button.dart';
 import 'package:npc/core/widgets/custom_loading_indicator.dart';
 import 'package:npc/core/utils/snackbar_helper.dart';
-import 'package:npc/features/tasks/data/task_model.dart';
-import 'package:npc/features/tasks/services/task_service.dart';
+import 'package:npc/data/models/quest_model.dart';
+import 'package:npc/view_models/quest_view_model.dart';
 import 'package:npc/core/widgets/image_viewer_screen.dart';
+import 'package:provider/provider.dart';
 import 'dart:convert';
-import 'dart:typed_data';
 
-// Admin ke liye task ki details dekhnay aur usay Approve/Reject karne wala screen
+// Admin ke liye task (Quest) ki details dekhnay aur usay Approve/Reject karne wala screen
 class TaskApprovalDetailScreen extends StatefulWidget {
-  final TaskModel task;
-  const TaskApprovalDetailScreen({super.key, required this.task});
+  final QuestModel quest;
+  const TaskApprovalDetailScreen({super.key, required this.quest});
 
   @override
   State<TaskApprovalDetailScreen> createState() =>
@@ -24,25 +24,11 @@ class TaskApprovalDetailScreen extends StatefulWidget {
 }
 
 class _TaskApprovalDetailScreenState extends State<TaskApprovalDetailScreen> {
-  bool _isLoading = false; // Screen per loading dikhanay ke liye
   String?
   _selectedStatus; // Admin jo status select karega (Approved ya Rejected)
-  List<Uint8List>? _decodedImages; // Base64 se convert ki gayi images ki list
 
   @override
   Widget build(BuildContext context) {
-    // Base64 images ko decode karke display ke liye taiyar karna
-    if (_decodedImages == null) {
-      _decodedImages = [];
-      for (String img in widget.task.images) {
-        try {
-          _decodedImages!.add(base64Decode(img));
-        } catch (e) {
-          debugPrint("Error decoding image: $e");
-        }
-      }
-    }
-
     return Scaffold(
       backgroundColor: AppColors.bgcolor,
       body: SafeArea(
@@ -50,7 +36,7 @@ class _TaskApprovalDetailScreenState extends State<TaskApprovalDetailScreen> {
           children: [
             Padding(
               padding: EdgeInsets.only(left: 20.w, right: 20.w, top: 35.h),
-              child: const CustomAppBar(title: "Approve Task", showBack: true),
+              child: const CustomAppBar(title: "Approve Quest", showBack: true),
             ),
             Expanded(
               child: SingleChildScrollView(
@@ -63,18 +49,15 @@ class _TaskApprovalDetailScreenState extends State<TaskApprovalDetailScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          "Task Details",
+                          "Quest Details",
                           style: AppTextStyles.mainheading.copyWith(
                             fontSize: 18.sp,
                           ),
                         ),
                         Container(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 10.w,
-                            // vertical: 0.h, // Reduced vertical padding for dropdown
-                          ),
+                          padding: EdgeInsets.symmetric(horizontal: 10.w),
                           decoration: BoxDecoration(
-                            color: AppColors.primary.withValues(alpha: 0.1),
+                            color: AppColors.primary.withAlpha(25),
                             borderRadius: BorderRadius.circular(20.r),
                             border: Border.all(color: AppColors.primary),
                           ),
@@ -122,13 +105,14 @@ class _TaskApprovalDetailScreenState extends State<TaskApprovalDetailScreen> {
                     ),
                     SizedBox(height: 16.h),
                     Text(
-                      widget.task.description,
+                      widget.quest.description ?? "No description",
                       style: AppTextStyles.body.copyWith(
                         fontSize: 16.sp,
                         color: AppColors.textDarkGrey,
                       ),
                       textAlign: TextAlign.justify,
                     ),
+                    SizedBox(height: 16.h),
                     // Task ki deadline date dikhana
                     Row(
                       children: [
@@ -139,7 +123,7 @@ class _TaskApprovalDetailScreenState extends State<TaskApprovalDetailScreen> {
                         ),
                         SizedBox(width: 8.w),
                         Text(
-                          "Deadline: ${_formatDate(widget.task.deadline)}",
+                          "Deadline: ${widget.quest.dueDate != null ? _formatDate(widget.quest.dueDate!) : 'No Deadline'}",
                           style: AppTextStyles.body.copyWith(
                             color: AppColors.textDarkGrey,
                             fontSize: 16.sp,
@@ -150,7 +134,8 @@ class _TaskApprovalDetailScreenState extends State<TaskApprovalDetailScreen> {
                     SizedBox(height: 32.h),
 
                     // Task Images (Visible for Admin to Approve)
-                    if (widget.task.images.isNotEmpty) ...[
+                    if (widget.quest.images != null &&
+                        widget.quest.images!.isNotEmpty) ...[
                       Text(
                         "Task Images",
                         style: AppTextStyles.mainheading.copyWith(
@@ -163,18 +148,22 @@ class _TaskApprovalDetailScreenState extends State<TaskApprovalDetailScreen> {
                         height: 170.h,
                         child: ListView.separated(
                           scrollDirection: Axis.horizontal,
-                          itemCount: _decodedImages!.length,
+                          itemCount: widget.quest.images!.length,
                           separatorBuilder: (context, index) =>
                               SizedBox(width: 16.w),
                           itemBuilder: (context, index) {
+                            final String imgData = widget.quest.images![index];
+                            final bool isUrl = imgData.startsWith('http');
+
                             return GestureDetector(
                               onTap: () {
-                                // Tasveer ko fulll screen per dekhne ke liye navigation
+                                // Tasveer ko full screen per dekhne ke liye navigation
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
                                     builder: (context) => ImageViewerScreen(
-                                      base64Image: widget.task.images[index],
+                                      base64Image: !isUrl ? imgData : null,
+                                      imageUrl: isUrl ? imgData : null,
                                     ),
                                   ),
                                 );
@@ -189,11 +178,31 @@ class _TaskApprovalDetailScreenState extends State<TaskApprovalDetailScreen> {
                                 ),
                                 child: ClipRRect(
                                   borderRadius: BorderRadius.circular(15.r),
-                                  child: Image.memory(
-                                    _decodedImages![index],
-                                    fit: BoxFit.cover,
-                                    gaplessPlayback: true,
-                                  ),
+                                  child: isUrl
+                                      ? Image.network(
+                                          imgData,
+                                          fit: BoxFit.cover,
+                                          loadingBuilder:
+                                              (context, child, progress) {
+                                                if (progress == null) {
+                                                  return child;
+                                                }
+                                                return const Center(
+                                                  child:
+                                                      CustomLoadingIndicator(),
+                                                );
+                                              },
+                                          errorBuilder:
+                                              (context, error, stack) =>
+                                                  const Icon(
+                                                    Icons.broken_image,
+                                                  ),
+                                        )
+                                      : Image.memory(
+                                          base64Decode(imgData),
+                                          fit: BoxFit.cover,
+                                          gaplessPlayback: true,
+                                        ),
                                 ),
                               ),
                             );
@@ -210,60 +219,55 @@ class _TaskApprovalDetailScreenState extends State<TaskApprovalDetailScreen> {
             // Approve/Reject Button
             Padding(
               padding: EdgeInsets.fromLTRB(20.w, 0, 20.w, 12.h),
-              child: _isLoading
-                  ? const CustomLoadingIndicator()
-                  : CustomButton(
-                      text: _selectedStatus == null
-                          ? "SELECT STATUS"
-                          : _selectedStatus == 'Approved'
-                          ? "APPROVE QUEST"
-                          : "REJECT QUEST",
-                      onPressed: _selectedStatus == null
-                          ? null // Disable button if no status selected
-                          : () {
-                              void handlePress() async {
-                                setState(() => _isLoading = true);
+              child: Consumer<QuestViewModel>(
+                builder: (context, questVM, child) {
+                  return questVM.isLoading
+                      ? const CustomLoadingIndicator()
+                      : CustomButton(
+                          text: _selectedStatus == null
+                              ? "SELECT STATUS"
+                              : _selectedStatus == 'Approved'
+                              ? "APPROVE QUEST"
+                              : "REJECT QUEST",
+                          onPressed: _selectedStatus == null
+                              ? null // Disable button if no status selected
+                              : () async {
+                                  // Action name set karna (API expects 'approve' or 'reject')
+                                  final action = _selectedStatus == 'Approved'
+                                      ? 'approve'
+                                      : 'reject';
 
-                                // Select kiya gaya status set karna
-                                final newStatus = _selectedStatus == 'Approved'
-                                    ? 'Approved'
-                                    : 'Rejected';
-                                final successMessage =
-                                    _selectedStatus == 'Approved'
-                                    ? "Task has been Approved"
-                                    : "Task has been Rejected";
-
-                                try {
-                                  // Firestore mein status update karna
-                                  await TaskService().updateTaskStatus(
-                                    widget.task.id,
-                                    newStatus,
+                                  final success = await questVM.updateStatus(
+                                    widget.quest.id!,
+                                    action,
                                   );
 
                                   if (!context.mounted) return;
-                                  Navigator.pop(
-                                    context,
-                                  ); // List screen per wapis jana
-                                  SnackbarHelper.showTopSnackBar(
-                                    context,
-                                    successMessage,
-                                    isSuccess: _selectedStatus == 'Approved',
-                                    isError: _selectedStatus == 'Rejected',
-                                  );
-                                } catch (e) {
-                                  if (!context.mounted) return;
-                                  setState(() => _isLoading = false);
-                                  SnackbarHelper.showTopSnackBar(
-                                    context,
-                                    "Error updating task status",
-                                    isError: true,
-                                  );
-                                }
-                              }
 
-                              handlePress();
-                            },
-                    ),
+                                  if (success) {
+                                    Navigator.pop(
+                                      context,
+                                    ); // List screen per wapis jana
+                                    SnackbarHelper.showTopSnackBar(
+                                      context,
+                                      _selectedStatus == 'Approved'
+                                          ? "Quest approved successfully"
+                                          : "Quest rejected",
+                                      isSuccess: _selectedStatus == 'Approved',
+                                      isError: _selectedStatus == 'Rejected',
+                                    );
+                                  } else {
+                                    SnackbarHelper.showTopSnackBar(
+                                      context,
+                                      questVM.errorMessage ??
+                                          "Failed to update status",
+                                      isError: true,
+                                    );
+                                  }
+                                },
+                        );
+                },
+              ),
             ),
           ],
         ),

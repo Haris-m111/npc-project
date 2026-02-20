@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:npc/view_models/auth_view_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:npc/core/constants/app_assets.dart';
 import 'package:npc/features/onboarding/onboarding_screen.dart';
 import 'package:npc/core/constants/app_colors.dart';
@@ -41,8 +40,6 @@ class _SplashScreenState extends State<SplashScreen> {
 
     // Custom Token check kryn gay Session persistence ke liye
     final String? token = await TokenService().getAccessToken();
-    // Fallback logic for Firebase users
-    final User? currentUser = FirebaseAuth.instance.currentUser;
 
     if (!mounted) return;
 
@@ -52,7 +49,7 @@ class _SplashScreenState extends State<SplashScreen> {
         MaterialPageRoute(builder: (context) => const OnboardingMain()),
       );
     } else {
-      if (token != null || currentUser != null) {
+      if (token != null) {
         // User pehle se login hai -> Pehle profile fetch kryn gay taake Home pe data nazar aaye
         final profileVM = Provider.of<ProfileViewModel>(context, listen: false);
         bool success = await profileVM.getProfile();

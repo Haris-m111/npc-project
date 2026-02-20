@@ -110,7 +110,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                 "OTP sent for password reset.",
                             isSuccess: true,
                           );
-                          await Future.delayed(const Duration(seconds: 1));
                           if (!context.mounted) return;
 
                           // OTP Screen par bhej rhe hain reset flow ke liye

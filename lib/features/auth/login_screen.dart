@@ -187,8 +187,6 @@ class _LoginScreenState extends State<LoginScreen> {
                                 );
                               }
 
-                              // Delay for snackbar
-                              await Future.delayed(const Duration(seconds: 1));
                               if (!context.mounted) return;
 
                               // Agar profile nahi mili (New User) ya 'name' khali hai, to Create Profile pr bhejo

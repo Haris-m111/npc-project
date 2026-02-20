@@ -14,8 +14,8 @@ import 'package:npc/core/utils/snackbar_helper.dart';
 import 'package:npc/core/widgets/custom_loading_indicator.dart';
 import 'package:npc/view_models/profile_view_model.dart';
 import 'package:npc/view_models/s3_view_model.dart';
-import 'package:npc/core/services/auth_service.dart';
 import 'package:npc/features/auth/login_screen.dart';
+import 'package:npc/view_models/auth_view_model.dart';
 import 'package:provider/provider.dart';
 
 // User ka profile banane ya update karne wala screen
@@ -96,8 +96,10 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
     } else {
       // Agar onboarding flow (Signup/Login) se aaye hain, to wapis Login screen pr jao
       // Bajaye iske ke app band ho jaye ya black screen aaye
-      await AuthService()
-          .signOut(); // Optional: User ko logout kr dena behtar hai
+      await Provider.of<AuthViewModel>(
+        context,
+        listen: false,
+      ).logout(); // Optional: User ko logout kr dena behtar hai
       if (mounted) {
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => const LoginScreen()),

@@ -348,6 +348,9 @@ class AuthViewModel with ChangeNotifier {
         await _authRepository.logout(data);
       }
 
+      // Google Sign-Out (to enable account picker next time)
+      await GoogleSignIn().signOut();
+
       // Tokens locally clear kr rhe hain
       await _tokenService.clearAll();
       _userId = null;
@@ -358,12 +361,18 @@ class AuthViewModel with ChangeNotifier {
       _setLoading(false);
       return true;
     } catch (e) {
-      // Agar logout fail bhi ho jaye (e.g. token expire),
-      // phir bhi hum locally logout kr dain gay
+      // Agar internet ka masla hai (Code 001/002 from BaseApiService), to tokens clear nahi kryn gay
+      if (e is ApiException && (e.statusCode == 001 || e.statusCode == 002)) {
+        _errorMessage = e.message;
+        _setLoading(false);
+        return false;
+      }
+
+      // Baki cases (e.g. token expire) mein locally logout kr dain gay
       await _tokenService.clearAll();
       _errorMessage = e.toString();
       _setLoading(false);
-      return false;
+      return true; // Token expired case mein bhi UI ko Login par bhej dena behtar hai
     }
   }
 
