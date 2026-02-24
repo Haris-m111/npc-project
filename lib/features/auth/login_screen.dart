@@ -25,6 +25,7 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  // Controllers to get text from email and password fields
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
@@ -37,10 +38,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // This block prevents the user from going back to the previous screen (Splash)
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
+        // Closes the app if back button is pressed
         SystemNavigator.pop();
       },
       child: Scaffold(
@@ -69,6 +72,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   SizedBox(height: 8.h),
+                  // Email Input Field
                   CustomTextfields.email(controller: _emailController),
                   SizedBox(height: 13.h),
                   Text(
@@ -79,6 +83,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   SizedBox(height: 8.h),
+                  // Password Input Field
                   CustomTextfields(
                     controller: _passwordController,
                     hintText: 'Enter your password',
@@ -90,7 +95,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     alignment: Alignment.centerRight,
                     child: GestureDetector(
                       onTap: () {
+                        // Close keyboard
                         FocusScope.of(context).unfocus();
+                        // Go to Forgot Password Screen
                         Navigator.of(context).push(
                           MaterialPageRoute(
                             builder: (context) => ForgotPasswordScreen(),
@@ -120,6 +127,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             String email = _emailController.text.trim();
                             String password = _passwordController.text;
 
+                            // 1. Basic Validation: Check if fields are empty
                             if (email.isEmpty || password.isEmpty) {
                               SnackbarHelper.showTopSnackBar(
                                 context,
@@ -129,6 +137,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               return;
                             }
 
+                            // 2. Email Format Validation
                             final emailValidation = Validators.validateEmail(
                               email,
                             );
@@ -147,7 +156,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             if (!context.mounted) return;
 
                             if (success) {
-                              // Profile check karne ke liye ProfileViewModel use kar rhe hain
+                              // Login successful, now check Profile logic
                               final profileVM = Provider.of<ProfileViewModel>(
                                 context,
                                 listen: false,
@@ -163,12 +172,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
                               if (!context.mounted) return;
 
-                              // 404 means user exists but hasn't created a profile yet.
-                              // This is NOT a fatal error for login.
+                              // Check if profile exists (404 means new user)
                               bool isNewUser =
                                   !profileSuccess &&
                                   profileVM.errorMessage == "Profile not found";
 
+                              // If API failed for other reasons, show error
                               if (!profileSuccess && !isNewUser) {
                                 SnackbarHelper.showTopSnackBar(
                                   context,
@@ -189,7 +198,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                               if (!context.mounted) return;
 
-                              // Agar profile nahi mili (New User) ya 'name' khali hai, to Create Profile pr bhejo
+                              // If New User OR Profile Name is missing -> Go to Create Profile
                               if (isNewUser ||
                                   profileVM.userProfile?.name == null ||
                                   profileVM.userProfile!.name!.isEmpty) {
@@ -197,13 +206,13 @@ class _LoginScreenState extends State<LoginScreen> {
                                   MaterialPageRoute(
                                     builder: (context) => CreateProfileScreen(
                                       isUpdate: false,
-                                      email: email, // Email pass krdi
+                                      email: email, // Pass email to next screen
                                     ),
                                   ),
                                   (route) => false,
                                 );
                               } else {
-                                // Agar profile complete hai, to seedha Home page pr
+                                // Profile is complete -> Go to Home Screen
                                 Navigator.of(context).pushAndRemoveUntil(
                                   MaterialPageRoute(
                                     builder: (context) =>
@@ -213,6 +222,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 );
                               }
                             } else {
+                              // Login Failed (Wrong email or password)
                               SnackbarHelper.showTopSnackBar(
                                 context,
                                 authVM.errorMessage ??
@@ -239,6 +249,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         GestureDetector(
                           onTap: () {
+                            // Navigate to Sign Up Screen
                             FocusScope.of(context).unfocus();
                             Navigator.of(context).pushReplacement(
                               MaterialPageRoute(builder: (context) => Signup()),
@@ -297,6 +308,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   Center(
                     child: GestureDetector(
                       onTap: () async {
+                        // Google Sign In Logic
                         final authVM = Provider.of<AuthViewModel>(
                           context,
                           listen: false,
@@ -306,7 +318,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         if (!context.mounted) return;
 
                         if (success) {
-                          // Profile check kar rhe hain
+                          // Get Profile details
                           final profileVM = Provider.of<ProfileViewModel>(
                             context,
                             listen: false,
@@ -374,6 +386,8 @@ class _LoginScreenState extends State<LoginScreen> {
                               );
                             }
                           }
+
+                          if (!context.mounted) return;
 
                           // Success snackbar for social login
                           SnackbarHelper.showTopSnackBar(

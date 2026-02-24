@@ -20,6 +20,7 @@ class ForgotPasswordScreen extends StatefulWidget {
 }
 
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
+  // Controller to handle email input
   final TextEditingController _emailController = TextEditingController();
 
   @override
@@ -56,6 +57,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         style: AppTextStyles.bodysmall,
                       ),
                       SizedBox(height: 15.h),
+                      // Password Recovery Email Input Field
                       Text(
                         'Email',
                         style: AppTextStyles.body.copyWith(
@@ -76,9 +78,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       isLoading: authVM.isLoading,
                       text: "NEXT",
                       onPressed: () async {
+                        // Close keyboard
                         FocusScope.of(context).unfocus();
                         String email = _emailController.text.trim();
 
+                        // 1. Validation: Check if email is empty
                         if (email.isEmpty) {
                           SnackbarHelper.showTopSnackBar(
                             context,
@@ -88,6 +92,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                           return;
                         }
 
+                        // 2. Validation: Check if email format is valid
                         final emailValidation = Validators.validateEmail(email);
                         if (emailValidation != null) {
                           SnackbarHelper.showTopSnackBar(
@@ -98,12 +103,13 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                           return;
                         }
 
-                        // API Forgot Password call
+                        // 3. Call API to send Password Reset Email
                         bool success = await authVM.forgotPassword(email);
 
                         if (!context.mounted) return;
 
                         if (success) {
+                          // API Success: Show success message
                           SnackbarHelper.showTopSnackBar(
                             context,
                             authVM.successMessage ??
@@ -112,7 +118,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                           );
                           if (!context.mounted) return;
 
-                          // OTP Screen par bhej rhe hain reset flow ke liye
+                          // Navigate to OTP Screen (passing email and flag)
                           Navigator.of(context).push(
                             MaterialPageRoute(
                               builder: (context) =>
@@ -120,6 +126,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                             ),
                           );
                         } else {
+                          // API Failure: Show error message
                           SnackbarHelper.showTopSnackBar(
                             context,
                             authVM.errorMessage ?? "Failed to send reset OTP",
